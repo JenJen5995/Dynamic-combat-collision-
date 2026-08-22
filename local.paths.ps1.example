@@ -1,0 +1,8 @@
+# Copy this file to local.paths.ps1 and edit the paths for your machine.
+# local.paths.ps1 is gitignored so your paths stay private.
+
+$CommonLibSSEPath = "C:\Path\To\CommonLibSSE-NG"
+$VcpkgRoot = "C:\Path\To\vcpkg"
+
+# Optional: Vortex staging folder. Leave empty to skip Vortex sync.
+$VortexModPath = ""

@@ -1,0 +1,19 @@
+{
+  "name": "dynamiccombatcollision",
+  "version": "1.3.0",
+  "dependencies": [
+    "directxtk",
+    "fmt",
+    "openvr",
+    "rapidcsv",
+    "simpleini",
+    "spdlog"
+  ],
+  "overrides": [
+    {
+      "name": "simpleini",
+      "version": "4.25"
+    }
+  ],
+  "builtin-baseline": "cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3"
+}

@@ -1,0 +1,1 @@
+Scriptname DynamicCombatCollisionMCM extends MCM_ConfigBase

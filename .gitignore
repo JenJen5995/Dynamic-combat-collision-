@@ -1,0 +1,15 @@
+build/
+build-vr/
+dist/
+extern/
+_extract/
+.vs/
+out/
+local.paths.ps1
+CMakeUserPresets.json
+*.user
+*.suo
+*.sdf
+*.opensdf
+*.zip
+*.obj

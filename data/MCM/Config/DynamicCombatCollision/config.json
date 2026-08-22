@@ -1,0 +1,137 @@
+{
+    "$schema": "https://raw.githubusercontent.com/Exit-9B/MCM-Helper/main/docs/config.schema.json",
+    "modName": "DynamicCombatCollision",
+    "displayName": "Dynamic Combat Collision",
+    "cursorFillMode": "topToBottom",
+    "pages": [
+        {
+            "pageDisplayName": "Collision",
+            "cursorFillMode": "topToBottom",
+            "content": [
+                {
+                    "text": "Settings",
+                    "type": "header"
+                },
+                {
+                    "text": "Bigger collision during fights. With Lock-on only, vanilla when you unlock. Otherwise vanilla when combat ends.",
+                    "type": "text"
+                },
+                {
+                    "id": "bEnabled:Collision",
+                    "text": "Enabled",
+                    "type": "toggle",
+                    "help": "When off, all actors return to vanilla collision.",
+                    "valueOptions": {
+                        "sourceType": "ModSettingBool"
+                    }
+                },
+                {
+                    "id": "bLockTargetOnly:Collision",
+                    "text": "Lock-on only",
+                    "type": "toggle",
+                    "help": "Requires True Directional Movement. While locked, only you and the lock target get bigger collision. Unlock restores both even if combat continues.",
+                    "valueOptions": {
+                        "sourceType": "ModSettingBool"
+                    }
+                },
+                {
+                    "id": "bAllyCombatCollision:Collision",
+                    "text": "Ally fights",
+                    "type": "toggle",
+                    "help": "When you are not in combat, followers and allies still get combat collision in their own fights. Their hull size follows their right-hand weapon, not yours. Lock-on only still applies to you, not allies.",
+                    "valueOptions": {
+                        "sourceType": "ModSettingBool"
+                    }
+                },
+                {
+                    "id": "fCombatScale:Collision",
+                    "text": "Default",
+                    "type": "slider",
+                    "help": "Bows, axes, magic, and any type without its own slider. Enemies copy your right-hand size. Anyone who is not an enemy stays at 1.50.",
+                    "valueOptions": {
+                        "min": 1.10,
+                        "max": 5.00,
+                        "step": 0.10,
+                        "formatString": "{2}",
+                        "sourceType": "ModSettingFloat"
+                    }
+                },
+                {
+                    "id": "bDebugDraw:Collision",
+                    "text": "Show box",
+                    "type": "toggle",
+                    "help": "Green ring is the real collision width. Requires TrueHUD. Turn off after testing.",
+                    "valueOptions": {
+                        "sourceType": "ModSettingBool"
+                    }
+                },
+                {
+                    "id": "bShrinkWhenPinched:Collision",
+                    "text": "Stop at walls",
+                    "type": "toggle",
+                    "help": "During fights, keep vanilla stop distance against walls, fences, and clutter. Collision vs people stays big. Turn this off and the bigger hull hits the world too.",
+                    "valueOptions": {
+                        "sourceType": "ModSettingBool"
+                    }
+                },
+                {
+                    "text": "Weapons",
+                    "type": "header"
+                },
+                {
+                    "id": "fFist:Collision",
+                    "text": "Fist",
+                    "type": "slider",
+                    "help": "Empty hands. You and enemies use this size.",
+                    "valueOptions": {
+                        "min": 1.10,
+                        "max": 5.00,
+                        "step": 0.10,
+                        "formatString": "{2}",
+                        "sourceType": "ModSettingFloat"
+                    }
+                },
+                {
+                    "id": "fDagger:Collision",
+                    "text": "Dagger",
+                    "type": "slider",
+                    "help": "One-handed daggers. You and enemies use this size.",
+                    "valueOptions": {
+                        "min": 1.10,
+                        "max": 5.00,
+                        "step": 0.10,
+                        "formatString": "{2}",
+                        "sourceType": "ModSettingFloat"
+                    }
+                },
+                {
+                    "id": "fSword:Collision",
+                    "text": "Sword",
+                    "type": "slider",
+                    "help": "One-handed swords. You and enemies use this size.",
+                    "valueOptions": {
+                        "min": 1.10,
+                        "max": 5.00,
+                        "step": 0.10,
+                        "formatString": "{2}",
+                        "sourceType": "ModSettingFloat"
+                    }
+                },
+                {
+                    "id": "fLongsword:Collision",
+                    "text": "Longsword",
+                    "type": "slider",
+                    "help": "Two-handed swords. You and enemies use this size.",
+                    "valueOptions": {
+                        "min": 1.10,
+                        "max": 5.00,
+                        "step": 0.10,
+                        "formatString": "{2}",
+                        "sourceType": "ModSettingFloat"
+                    }
+                }
+            ]
+        }
+    ]
+}
+
