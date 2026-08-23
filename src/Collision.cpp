@@ -724,6 +724,58 @@ namespace Collision
 			return a_pt.rootCollidableB ? a_pt.rootCollidableB : a_pt.rootCollidableA;
 		}
 
+		const RE::hkpCollidable* ProxyCollidable(RE::bhkCharacterController* a_controller)
+		{
+			auto* proxyCtrl = skyrim_cast<RE::bhkCharProxyController*>(a_controller);
+			if (!proxyCtrl) {
+				return nullptr;
+			}
+			auto* proxy = proxyCtrl->GetCharacterProxy();
+			if (!proxy || !proxy->shapePhantom) {
+				return nullptr;
+			}
+			return static_cast<const RE::hkpCollidable*>(&proxy->shapePhantom->collidable);
+		}
+
+		const RE::hkpCollidable* PlayerProxyCollidable()
+		{
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			if (!player) {
+				return nullptr;
+			}
+			return ProxyCollidable(player->GetCharController());
+		}
+
+		RE::hkpCharacterProxy* PlayerCharacterProxy()
+		{
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			if (!player) {
+				return nullptr;
+			}
+			auto* ctrl = skyrim_cast<RE::bhkCharProxyController*>(player->GetCharController());
+			return ctrl ? ctrl->GetCharacterProxy() : nullptr;
+		}
+
+		bool IsPlayerCollidable(const RE::hkpCollidable* a_col)
+		{
+			if (!a_col) {
+				return false;
+			}
+			if (a_col == PlayerProxyCollidable()) {
+				return true;
+			}
+			auto* refr = RE::TESHavokUtilities::FindCollidableRef(*a_col);
+			return refr && refr->IsPlayerRef();
+		}
+
+		float ActorRadiusHk(const Tracked* a_tracked)
+		{
+			const float world = a_tracked && a_tracked->vanillaRadius > 0.0f ?
+				a_tracked->vanillaRadius * (a_tracked->applied > 0.0f ? a_tracked->applied : ScaleMath::kVanilla) :
+				kHumanXYRadius;
+			return world * RE::bhkWorld::GetWorldScale();
+		}
+
 		void MaybeSnapshotCombatHull(
 			Tracked& a_tracked,
 			RE::hkpListShape* a_list,
@@ -1808,6 +1860,167 @@ namespace Collision
 			}
 		}
 
+		void FilterPlayerActorSolverConstraints(
+			RE::bhkCharProxyController* a_self,
+			const RE::hkpCharacterProxy* a_proxy,
+			const RE::hkArray<RE::hkpRootCdPoint>& a_manifold,
+			RE::hkpSimplexSolverInput& a_input)
+		{
+			if (!Settings::bEnabled || !Settings::bPlayerImmovable) {
+				return;
+			}
+			if (!a_self || !a_proxy || !a_proxy->shapePhantom || !a_input.constraints) {
+				return;
+			}
+			if (a_input.numConstraints <= 0 || a_manifold.empty()) {
+				return;
+			}
+
+			auto* controller = static_cast<RE::bhkCharacterController*>(a_self);
+			auto* tracked = FindTrackedByController(controller);
+			if (!tracked || tracked->slideActive ||
+				!ScaleMath::NeedsApply(tracked->applied, ScaleMath::kVanilla)) {
+				return;
+			}
+
+			const auto actor = tracked->handle.get();
+			if (!actor || !actor->IsPlayerRef()) {
+				return;
+			}
+
+			const auto* selfCol = static_cast<const RE::hkpCollidable*>(&a_proxy->shapePhantom->collidable);
+			const float vx = a_input.velocity.quad.m128_f32[0];
+			const float vy = a_input.velocity.quad.m128_f32[1];
+			const auto manifoldCount = a_manifold.size();
+			const auto limit = manifoldCount < a_input.numConstraints ?
+				manifoldCount :
+				a_input.numConstraints;
+
+			for (RE::hkArray<RE::hkpRootCdPoint>::size_type i = 0; i < limit; ++i) {
+				const auto& pt = a_manifold[i];
+				const RE::hkpCollidable* other = ManifoldOtherCollidable(pt, selfCol);
+				if (!other || !IsActorCollisionLayer(other->GetCollisionLayer())) {
+					continue;
+				}
+
+				const float nx = pt.contact.separatingNormal.quad.m128_f32[0];
+				const float ny = pt.contact.separatingNormal.quad.m128_f32[1];
+				if (nx * nx + ny * ny < 0.35f * 0.35f) {
+					continue;
+				}
+				if (WallClip::KeepPlayerActorConstraint(vx, vy, nx, ny)) {
+					continue;
+				}
+
+				a_input.constraints[i].plane.quad.m128_f32[3] = WallClip::kSatisfiedSimplexPlaneW;
+			}
+		}
+
+		void BlockNpcIntoPlayerHull(
+			RE::bhkCharProxyController* a_self,
+			const RE::hkpCharacterProxy* a_proxy,
+			const RE::hkArray<RE::hkpRootCdPoint>& a_manifold,
+			RE::hkpSimplexSolverInput& a_input)
+		{
+			if (!Settings::bEnabled || !Settings::bPlayerImmovable) {
+				return;
+			}
+			if (!a_self || !a_proxy || !a_proxy->shapePhantom) {
+				return;
+			}
+
+			auto* playerProxy = PlayerCharacterProxy();
+			if (!playerProxy || !playerProxy->shapePhantom || a_proxy == playerProxy) {
+				return;
+			}
+
+			auto* controller = static_cast<RE::bhkCharacterController*>(a_self);
+			auto* tracked = FindTrackedByController(controller);
+			if (tracked && tracked->slideActive) {
+				return;
+			}
+
+			static bool loggedNpcTick = false;
+			if (!loggedNpcTick) {
+				loggedNpcTick = true;
+				logger::info("Don't get pushed: NPC movement tick is running");
+			}
+
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			auto* playerTracked = player ?
+				FindTrackedByController(player->GetCharController()) :
+				nullptr;
+
+			const auto& playerT = playerProxy->shapePhantom->motionState.transform.translation;
+			const auto& npcT = a_proxy->shapePhantom->motionState.transform.translation;
+			const float dx = npcT.quad.m128_f32[0] - playerT.quad.m128_f32[0];
+			const float dy = npcT.quad.m128_f32[1] - playerT.quad.m128_f32[1];
+			const float dist2 = dx * dx + dy * dy;
+			if (dist2 < 1.0e-8f) {
+				return;
+			}
+			const float dist = std::sqrt(dist2);
+			const float combined = ActorRadiusHk(playerTracked) + ActorRadiusHk(tracked) + a_proxy->keepDistance;
+			if (dist >= combined) {
+				return;
+			}
+
+			const float inv = 1.0f / dist;
+			const float nxx = dx * inv;
+			const float nyy = dy * inv;
+			float& vx = a_input.velocity.quad.m128_f32[0];
+			float& vy = a_input.velocity.quad.m128_f32[1];
+			const float vn = vx * nxx + vy * nyy;
+			const float recover = a_proxy->penetrationRecoverySpeed > 1.0f ?
+				a_proxy->penetrationRecoverySpeed :
+				1.0f;
+			const float wantVn = (combined - dist) * recover;
+			if (vn < wantVn) {
+				const float add = wantVn - vn;
+				vx += nxx * add;
+				vy += nyy * add;
+				static bool loggedBlock = false;
+				if (!loggedBlock) {
+					loggedBlock = true;
+					logger::info(
+						"Don't get pushed: blocked NPC walking into player hull (distHk={:.3f} combinedHk={:.3f})",
+						dist,
+						combined);
+				}
+			}
+
+			if (!a_input.constraints || a_input.numConstraints <= 0 || a_manifold.empty()) {
+				return;
+			}
+
+			const auto* selfCol = static_cast<const RE::hkpCollidable*>(&a_proxy->shapePhantom->collidable);
+			const auto manifoldCount = a_manifold.size();
+			const auto limit = manifoldCount < a_input.numConstraints ?
+				manifoldCount :
+				a_input.numConstraints;
+			for (RE::hkArray<RE::hkpRootCdPoint>::size_type i = 0; i < limit; ++i) {
+				const auto& pt = a_manifold[i];
+				const RE::hkpCollidable* other = ManifoldOtherCollidable(pt, selfCol);
+				if (!other || !IsActorCollisionLayer(other->GetCollisionLayer())) {
+					continue;
+				}
+				if (!IsPlayerCollidable(other) && dist >= combined * 0.98f) {
+					continue;
+				}
+
+				auto& constraint = a_input.constraints[i];
+				constraint.plane.quad.m128_f32[0] = nxx;
+				constraint.plane.quad.m128_f32[1] = nyy;
+				constraint.plane.quad.m128_f32[2] = 0.0f;
+				constraint.plane.quad.m128_f32[3] =
+					WallClip::VanillaWorldStopDistanceHk(dist, combined, 0.0f);
+				constraint.velocity.quad.m128_f32[0] = 0.0f;
+				constraint.velocity.quad.m128_f32[1] = 0.0f;
+				constraint.velocity.quad.m128_f32[2] = 0.0f;
+				constraint.velocity.quad.m128_f32[3] = 0.0f;
+			}
+		}
+
 		REL::Relocation<void(RE::bhkCharProxyController*, const RE::hkpCharacterProxy*, const RE::hkArray<RE::hkpRootCdPoint>&, RE::hkpSimplexSolverInput&)>
 			_ProcessConstraints;
 
@@ -1819,13 +2032,171 @@ namespace Collision
 		{
 			_ProcessConstraints(a_self, a_proxy, a_manifold, a_input);
 			FilterWorldSolverConstraints(a_self, a_proxy, a_manifold, a_input);
+			FilterPlayerActorSolverConstraints(a_self, a_proxy, a_manifold, a_input);
+			BlockNpcIntoPlayerHull(a_self, a_proxy, a_manifold, a_input);
+		}
+
+		REL::Relocation<void(RE::bhkCharProxyController*, RE::hkpCharacterProxy*, RE::hkpCharacterProxy*, const RE::hkContactPoint&)>
+			_CharacterInteraction;
+
+		void CharacterInteractionThunk(
+			RE::bhkCharProxyController* a_self,
+			RE::hkpCharacterProxy* a_proxy,
+			RE::hkpCharacterProxy* a_otherProxy,
+			const RE::hkContactPoint& a_contact)
+		{
+			if (!Settings::bEnabled || !Settings::bPlayerImmovable || !a_proxy || !a_otherProxy) {
+				_CharacterInteraction(a_self, a_proxy, a_otherProxy, a_contact);
+				return;
+			}
+
+			auto* playerProxy = PlayerCharacterProxy();
+			if (!playerProxy || (a_proxy != playerProxy && a_otherProxy != playerProxy)) {
+				_CharacterInteraction(a_self, a_proxy, a_otherProxy, a_contact);
+				return;
+			}
+
+			if (a_proxy == playerProxy) {
+				return;
+			}
+
+			const float nx = a_contact.separatingNormal.quad.m128_f32[0];
+			const float ny = a_contact.separatingNormal.quad.m128_f32[1];
+			const float nxy2 = nx * nx + ny * ny;
+			if (nxy2 < 0.35f * 0.35f) {
+				return;
+			}
+			const float inv = 1.0f / std::sqrt(nxy2);
+			const float nxx = nx * inv;
+			const float nyy = ny * inv;
+			float& vx = a_proxy->velocity.quad.m128_f32[0];
+			float& vy = a_proxy->velocity.quad.m128_f32[1];
+			const float vn = vx * nxx + vy * nyy;
+			const float dist = a_contact.separatingNormal.quad.m128_f32[3];
+			const float keep = a_proxy->keepDistance;
+			float wantVn = 0.0f;
+			if (dist < keep) {
+				const float recover = a_proxy->penetrationRecoverySpeed > 1.0f ?
+					a_proxy->penetrationRecoverySpeed :
+					1.0f;
+				wantVn = (keep - dist) * recover;
+			}
+			if (vn < wantVn) {
+				const float add = wantVn - vn;
+				vx += nxx * add;
+				vy += nyy * add;
+			}
+
+			static bool logged = false;
+			if (!logged) {
+				logged = true;
+				logger::info("Don't get pushed: NPC bump is a one-way wall (player does not move)");
+			}
+		}
+
+		void StopNpcsWalkingThroughPlayer()
+		{
+			if (!Settings::bEnabled || !Settings::bPlayerImmovable) {
+				return;
+			}
+
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			if (!player) {
+				return;
+			}
+			auto* playerCtrl = player->GetCharController();
+			if (!playerCtrl) {
+				return;
+			}
+			auto* playerTracked = FindTrackedByController(playerCtrl);
+			if (playerTracked && playerTracked->slideActive) {
+				return;
+			}
+			if (!playerTracked || !ScaleMath::NeedsApply(playerTracked->applied, ScaleMath::kVanilla)) {
+				return;
+			}
+
+			static bool loggedTick = false;
+			if (!loggedTick) {
+				loggedTick = true;
+				logger::info("Don't get pushed: player-update NPC block is running");
+			}
+
+			RE::hkVector4 playerPos;
+			playerCtrl->GetPosition(playerPos, false);
+			const float playerR = ActorRadiusHk(playerTracked);
+			const auto* lists = RE::ProcessLists::GetSingleton();
+			if (!lists) {
+				return;
+			}
+
+			for (auto& handle : lists->highActorHandles) {
+				const auto actor = handle.get();
+				if (!actor || actor->IsPlayerRef() || actor->IsDead() || !actor->Is3DLoaded()) {
+					continue;
+				}
+				auto* npcCtrl = actor->GetCharController();
+				if (!npcCtrl || npcCtrl == playerCtrl) {
+					continue;
+				}
+
+				RE::hkVector4 npcPos;
+				npcCtrl->GetPosition(npcPos, false);
+				const float dx = npcPos.quad.m128_f32[0] - playerPos.quad.m128_f32[0];
+				const float dy = npcPos.quad.m128_f32[1] - playerPos.quad.m128_f32[1];
+				const float dist2 = dx * dx + dy * dy;
+				if (dist2 < 1.0e-8f) {
+					continue;
+				}
+				const float dist = std::sqrt(dist2);
+				auto* npcTracked = FindTrackedByController(npcCtrl);
+				const float combined = playerR + ActorRadiusHk(npcTracked);
+				if (dist >= combined) {
+					continue;
+				}
+
+				const float inv = 1.0f / dist;
+				const float nxx = dx * inv;
+				const float nyy = dy * inv;
+
+				RE::hkVector4 vel;
+				npcCtrl->GetLinearVelocityImpl(vel);
+				const float vn = vel.quad.m128_f32[0] * nxx + vel.quad.m128_f32[1] * nyy;
+				if (vn < 0.0f) {
+					vel.quad.m128_f32[0] -= vn * nxx;
+					vel.quad.m128_f32[1] -= vn * nyy;
+					npcCtrl->SetLinearVelocityImpl(vel);
+				}
+
+				auto& outVel = npcCtrl->outVelocity;
+				const float outVn = outVel.quad.m128_f32[0] * nxx + outVel.quad.m128_f32[1] * nyy;
+				if (outVn < 0.0f) {
+					outVel.quad.m128_f32[0] -= outVn * nxx;
+					outVel.quad.m128_f32[1] -= outVn * nyy;
+				}
+
+				const float pen = combined - dist;
+				npcPos.quad.m128_f32[0] += nxx * pen;
+				npcPos.quad.m128_f32[1] += nyy * pen;
+				npcCtrl->SetPositionImpl(npcPos, false, false);
+
+				static bool loggedBlock = false;
+				if (!loggedBlock) {
+					loggedBlock = true;
+					logger::info(
+						"Don't get pushed: pushed NPC out of player hull (distHk={:.3f} combinedHk={:.3f})",
+						dist,
+						combined);
+				}
+			}
 		}
 
 		void InstallProxyHooksInternal()
 		{
 			REL::Relocation<std::uintptr_t> vtbl{ RE::VTABLE_bhkCharProxyController[0] };
 			_ProcessConstraints = vtbl.write_vfunc(1, ProcessConstraintsThunk);
-			logger::info("Installed world-contact filter on bhkCharProxyController");
+			_CharacterInteraction = vtbl.write_vfunc(4, CharacterInteractionThunk);
+			logger::info("Installed world-contact, player-actor, and NPC-vs-player wall filters on bhkCharProxyController");
 		}
 	}
 
@@ -1875,6 +2246,7 @@ namespace Collision
 			return;
 		}
 
+		StopNpcsWalkingThroughPlayer();
 		DrawDebug();
 
 		static std::uint32_t frames = 0;

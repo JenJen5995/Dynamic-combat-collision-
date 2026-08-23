@@ -25,6 +25,32 @@ namespace WallClip
 		return a_alongHk - a_vanillaHk - a_keepDistance;
 	}
 
+	// Positive plane.w => simplex constraint already satisfied, no push this frame.
+	inline constexpr float kSatisfiedSimplexPlaneW = 1.0f;
+	// Havok units. Below this inward speed, treat the player as not walking into them.
+	inline constexpr float kPlayerIntoActorSpeedHk = 0.05f;
+
+	// n points toward the player (out of the other actor). Keep the stop if the
+	// player is walking into them. Drop it if they are walking into the player.
+	inline bool KeepPlayerActorConstraint(
+		float a_vx,
+		float a_vy,
+		float a_nx,
+		float a_ny,
+		float a_inwardMinHk = kPlayerIntoActorSpeedHk)
+	{
+		if (!std::isfinite(a_vx) || !std::isfinite(a_vy) || !std::isfinite(a_nx) || !std::isfinite(a_ny) ||
+			!std::isfinite(a_inwardMinHk) || a_inwardMinHk < 0.0f) {
+			return false;
+		}
+		float nx = a_nx;
+		float ny = a_ny;
+		if (!NormalizeXY(nx, ny)) {
+			return false;
+		}
+		return (a_vx * nx + a_vy * ny) < -a_inwardMinHk;
+	}
+
 	inline bool RunSelfTest()
 	{
 		float x = 3.0f;
@@ -47,6 +73,17 @@ namespace WallClip
 			return false;
 		}
 		if (std::fabs(VanillaWorldStopDistanceHk(0.500f, 0.0f, 0.100f) - 0.500f) > 0.001f) {
+			return false;
+		}
+		if (!(kSatisfiedSimplexPlaneW > 0.0f) || !std::isfinite(kSatisfiedSimplexPlaneW)) {
+			return false;
+		}
+		if (!KeepPlayerActorConstraint(-1.0f, 0.0f, 1.0f, 0.0f)) {
+			return false;
+		}
+		if (KeepPlayerActorConstraint(0.0f, 0.0f, 1.0f, 0.0f) ||
+			KeepPlayerActorConstraint(1.0f, 0.0f, 1.0f, 0.0f) ||
+			KeepPlayerActorConstraint(0.0f, 1.0f, 1.0f, 0.0f)) {
 			return false;
 		}
 		return true;

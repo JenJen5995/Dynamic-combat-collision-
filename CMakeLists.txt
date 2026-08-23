@@ -4,7 +4,7 @@ if(DEFINED ENV{VCPKG_ROOT} AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
   set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
 endif()
 
-project(DynamicCombatCollision VERSION 1.3.0 LANGUAGES CXX)
+project(DynamicCombatCollision VERSION 1.3.1 LANGUAGES CXX)
 
 # Keep src/Plugin.h fallback macros and vcpkg.json version in sync with this project() VERSION.
 # directxtk and rapidcsv are required by CommonLibSSE-NG, not by this plugin's own sources.

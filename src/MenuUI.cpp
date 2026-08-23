@@ -61,6 +61,9 @@ namespace MenuUI
 				EditBool("Stop at walls", Settings::bShrinkWhenPinched);
 				ImGui::TextWrapped(
 					"During fights, keep vanilla stop distance against walls, fences, and clutter. Collision vs people stays big. Turn this off and the bigger hull hits the world too.");
+				EditBool("Don't get pushed", Settings::bPlayerImmovable);
+				ImGui::TextWrapped(
+					"NPCs still stop on your collision, and you still stop on theirs. They won't slide you. Off by default.");
 			}
 
 			if (ImGui::CollapsingHeader("Weapons", ImGuiTreeNodeFlags_DefaultOpen)) {

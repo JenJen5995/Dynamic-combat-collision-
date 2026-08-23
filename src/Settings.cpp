@@ -35,6 +35,7 @@ namespace Settings
 				bLockTargetOnly = ini.GetBoolValue("Collision", "bLockTargetOnly", bLockTargetOnly);
 				bDebugDraw = ini.GetBoolValue("Collision", "bDebugDraw", bDebugDraw);
 				bShrinkWhenPinched = ini.GetBoolValue("Collision", "bShrinkWhenPinched", bShrinkWhenPinched);
+				bPlayerImmovable = ini.GetBoolValue("Collision", "bPlayerImmovable", bPlayerImmovable);
 				bAllyCombatCollision = ini.GetBoolValue("Collision", "bAllyCombatCollision", bAllyCombatCollision);
 				fCombatScale = static_cast<float>(ini.GetDoubleValue("Collision", "fCombatScale", fCombatScale));
 				fFist = static_cast<float>(ini.GetDoubleValue("Collision", "fFist", fFist));
@@ -76,12 +77,13 @@ namespace Settings
 		RefreshUserIniTimestamp();
 
 		logger::info(
-			"Dynamic Combat Collision: enabled={} lockTargetOnly={} allyCombat={} debugDraw={} shrinkWhenPinched={} default={:.2f} fist={:.2f} dagger={:.2f} sword={:.2f} longsword={:.2f}",
+			"Dynamic Combat Collision: enabled={} lockTargetOnly={} allyCombat={} debugDraw={} shrinkWhenPinched={} playerImmovable={} default={:.2f} fist={:.2f} dagger={:.2f} sword={:.2f} longsword={:.2f}",
 			bEnabled,
 			bLockTargetOnly,
 			bAllyCombatCollision,
 			bDebugDraw,
 			bShrinkWhenPinched,
+			bPlayerImmovable,
 			fCombatScale,
 			fFist,
 			fDagger,
@@ -102,6 +104,7 @@ namespace Settings
 		ini.SetBoolValue("Collision", "bLockTargetOnly", bLockTargetOnly);
 		ini.SetBoolValue("Collision", "bDebugDraw", bDebugDraw);
 		ini.SetBoolValue("Collision", "bShrinkWhenPinched", bShrinkWhenPinched);
+		ini.SetBoolValue("Collision", "bPlayerImmovable", bPlayerImmovable);
 		ini.SetBoolValue("Collision", "bAllyCombatCollision", bAllyCombatCollision);
 		ini.SetDoubleValue("Collision", "fCombatScale", fCombatScale);
 		ini.SetDoubleValue("Collision", "fFist", fFist);

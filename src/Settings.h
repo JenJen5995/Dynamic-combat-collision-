@@ -8,9 +8,10 @@ namespace Settings
 	void ReloadIfChanged();
 
 	inline bool  bEnabled = true;
-	inline bool  bLockTargetOnly = true;
+	inline bool  bLockTargetOnly = false;
 	inline bool  bDebugDraw = false;
 	inline bool  bShrinkWhenPinched = true;
+	inline bool  bPlayerImmovable = false;
 	inline bool  bAllyCombatCollision = false;
 	inline float fCombatScale = 1.50f;
 	inline float fFist = 1.50f;

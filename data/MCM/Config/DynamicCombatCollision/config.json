@@ -75,6 +75,15 @@
                     }
                 },
                 {
+                    "id": "bPlayerImmovable:Collision",
+                    "text": "Don't get pushed",
+                    "type": "toggle",
+                    "help": "NPCs still stop on your collision, and you still stop on theirs. They won't slide you. Off by default.",
+                    "valueOptions": {
+                        "sourceType": "ModSettingBool"
+                    }
+                },
+                {
                     "text": "Weapons",
                     "type": "header"
                 },
