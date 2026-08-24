@@ -58,22 +58,24 @@ namespace MenuUI
 				EditBool("Show box", Settings::bDebugDraw);
 				ImGui::TextWrapped(
 					"Green ring is the real collision width. Requires TrueHUD.");
-				EditBool("Stop at walls", Settings::bShrinkWhenPinched);
-				ImGui::TextWrapped(
-					"During fights, keep vanilla stop distance against walls, fences, and clutter. Collision vs people stays big. Turn this off and the bigger hull hits the world too.");
 				EditBool("Don't get pushed", Settings::bPlayerImmovable);
 				ImGui::TextWrapped(
-					"NPCs still stop on your collision, and you still stop on theirs. They won't slide you. Off by default.");
+					"NPCs stop on you. They will not slide you.");
+				EditBool("Attack translation", Settings::bTranslationHelper);
+				ImGui::TextWrapped(
+					"Lets NPC stepping attacks keep moving until the rings touch.");
 			}
 
 			if (ImGui::CollapsingHeader("Weapons", ImGuiTreeNodeFlags_DefaultOpen)) {
 				EditScale("Default", Settings::fCombatScale);
 				ImGui::TextWrapped(
-					"Bows, axes, magic, and types without their own slider.");
+					"Bows, one-handed axes/maces, magic, and types without their own slider.");
 				EditScale("Fist", Settings::fFist);
 				EditScale("Dagger", Settings::fDagger);
 				EditScale("Sword", Settings::fSword);
 				EditScale("Longsword", Settings::fLongsword);
+				EditScale("Warhammer", Settings::fWarhammer);
+				EditScale("Battleaxe", Settings::fBattleaxe);
 			}
 		}
 	}

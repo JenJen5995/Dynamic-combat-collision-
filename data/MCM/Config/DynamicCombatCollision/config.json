@@ -47,7 +47,7 @@
                     "id": "fCombatScale:Collision",
                     "text": "Default",
                     "type": "slider",
-                    "help": "Bows, axes, magic, and any type without its own slider. Enemies copy your right-hand size. Anyone who is not an enemy stays at 1.50.",
+                    "help": "Bows, one-handed axes/maces, magic, and any type without its own slider. Enemies copy your right-hand size. Anyone who is not an enemy stays at 1.50.",
                     "valueOptions": {
                         "min": 1.10,
                         "max": 5.00,
@@ -66,19 +66,19 @@
                     }
                 },
                 {
-                    "id": "bShrinkWhenPinched:Collision",
-                    "text": "Stop at walls",
+                    "id": "bPlayerImmovable:Collision",
+                    "text": "Don't get pushed",
                     "type": "toggle",
-                    "help": "During fights, keep vanilla stop distance against walls, fences, and clutter. Collision vs people stays big. Turn this off and the bigger hull hits the world too.",
+                    "help": "NPCs stop on you. They will not slide you.",
                     "valueOptions": {
                         "sourceType": "ModSettingBool"
                     }
                 },
                 {
-                    "id": "bPlayerImmovable:Collision",
-                    "text": "Don't get pushed",
+                    "id": "bTranslationHelper:Collision",
+                    "text": "Attack translation",
                     "type": "toggle",
-                    "help": "NPCs still stop on your collision, and you still stop on theirs. They won't slide you. Off by default.",
+                    "help": "Lets NPC stepping attacks keep moving until the rings touch.",
                     "valueOptions": {
                         "sourceType": "ModSettingBool"
                     }
@@ -131,6 +131,32 @@
                     "text": "Longsword",
                     "type": "slider",
                     "help": "Two-handed swords. You and enemies use this size.",
+                    "valueOptions": {
+                        "min": 1.10,
+                        "max": 5.00,
+                        "step": 0.10,
+                        "formatString": "{2}",
+                        "sourceType": "ModSettingFloat"
+                    }
+                },
+                {
+                    "id": "fWarhammer:Collision",
+                    "text": "Warhammer",
+                    "type": "slider",
+                    "help": "Two-handed warhammers. You and enemies use this size.",
+                    "valueOptions": {
+                        "min": 1.10,
+                        "max": 5.00,
+                        "step": 0.10,
+                        "formatString": "{2}",
+                        "sourceType": "ModSettingFloat"
+                    }
+                },
+                {
+                    "id": "fBattleaxe:Collision",
+                    "text": "Battleaxe",
+                    "type": "slider",
+                    "help": "Two-handed battleaxes. You and enemies use this size.",
                     "valueOptions": {
                         "min": 1.10,
                         "max": 5.00,

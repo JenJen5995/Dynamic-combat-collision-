@@ -114,13 +114,13 @@ extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
 	data.PluginVersion(Plugin::VERSION);
 	data.PluginName(Plugin::NAME);
 	data.AuthorName("typiak");
-	data.UsesAddressLibrary(true);
+	data.UsesAddressLibrary();
 #if defined(ENABLE_SKYRIM_VR) && !defined(ENABLE_SKYRIM_SE) && !defined(ENABLE_SKYRIM_AE)
 	data.CompatibleVersions({ SKSE::RUNTIME_VR_1_4_15 });
 #else
 	data.CompatibleVersions({ SKSE::RUNTIME_SSE_LATEST });
 #endif
-	data.HasNoStructUse(true);
+	data.UsesNoStructs();
 	return data;
 }();
 

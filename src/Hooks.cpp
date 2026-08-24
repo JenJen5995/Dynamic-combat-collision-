@@ -13,7 +13,7 @@ namespace Hooks
 		void PlayerUpdate(RE::Actor* a_this, float a_delta)
 		{
 			_PlayerUpdate(a_this, a_delta);
-			Collision::Update();
+			Collision::Update(a_delta);
 		}
 	}
 

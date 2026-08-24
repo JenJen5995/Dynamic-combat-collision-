@@ -9,7 +9,7 @@ namespace Plugin
 #ifndef DCC_VERSION_MAJOR
 #	define DCC_VERSION_MAJOR 1
 #	define DCC_VERSION_MINOR 3
-#	define DCC_VERSION_PATCH 1
+#	define DCC_VERSION_PATCH 3
 #endif
 
 	inline constexpr std::string_view NAME = "DynamicCombatCollision"sv;

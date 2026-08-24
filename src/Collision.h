@@ -3,7 +3,7 @@
 namespace Collision
 {
 	void Reset();
-	void Update();
+	void Update(float a_delta);
 	void SetVcdFightOverride(bool a_present);
 	void SetSkyParkourPresent(bool a_present);
 	void InstallProxyHooks();
