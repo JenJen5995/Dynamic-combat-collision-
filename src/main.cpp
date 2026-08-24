@@ -44,6 +44,7 @@ namespace
 		case SKSE::MessagingInterface::kDataLoaded:
 			Settings::Load();
 			Collision::Reset();
+			SKSE::Translation::ParseTranslation("DynamicCombatCollision");
 #ifdef DCC_MENU_UI
 			MenuUI::Register();
 #endif

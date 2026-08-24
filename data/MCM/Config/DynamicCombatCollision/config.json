@@ -1,53 +1,53 @@
 {
     "$schema": "https://raw.githubusercontent.com/Exit-9B/MCM-Helper/main/docs/config.schema.json",
     "modName": "DynamicCombatCollision",
-    "displayName": "Dynamic Combat Collision",
+    "displayName": "$DCC_ModName",
     "cursorFillMode": "topToBottom",
     "pages": [
         {
-            "pageDisplayName": "Collision",
+            "pageDisplayName": "$DCC_Page",
             "cursorFillMode": "topToBottom",
             "content": [
                 {
-                    "text": "Settings",
+                    "text": "$DCC_Header_Settings",
                     "type": "header"
                 },
                 {
-                    "text": "Bigger collision during fights. With Lock-on only, vanilla when you unlock. Otherwise vanilla when combat ends.",
+                    "text": "$DCC_Intro",
                     "type": "text"
                 },
                 {
                     "id": "bEnabled:Collision",
-                    "text": "Enabled",
+                    "text": "$DCC_Enabled",
                     "type": "toggle",
-                    "help": "When off, all actors return to vanilla collision.",
+                    "help": "$DCC_Enabled_Help",
                     "valueOptions": {
                         "sourceType": "ModSettingBool"
                     }
                 },
                 {
                     "id": "bLockTargetOnly:Collision",
-                    "text": "Lock-on only",
+                    "text": "$DCC_LockOn",
                     "type": "toggle",
-                    "help": "Requires True Directional Movement. While locked, only you and the lock target get bigger collision. Unlock restores both even if combat continues.",
+                    "help": "$DCC_LockOn_Help",
                     "valueOptions": {
                         "sourceType": "ModSettingBool"
                     }
                 },
                 {
                     "id": "bAllyCombatCollision:Collision",
-                    "text": "Ally fights",
+                    "text": "$DCC_Ally",
                     "type": "toggle",
-                    "help": "When you are not in combat, followers and allies still get combat collision in their own fights. Their hull size follows their right-hand weapon, not yours. Lock-on only still applies to you, not allies.",
+                    "help": "$DCC_Ally_Help",
                     "valueOptions": {
                         "sourceType": "ModSettingBool"
                     }
                 },
                 {
                     "id": "fCombatScale:Collision",
-                    "text": "Default",
+                    "text": "$DCC_Default",
                     "type": "slider",
-                    "help": "Bows, one-handed axes/maces, magic, and any type without its own slider. Enemies copy your right-hand size. Anyone who is not an enemy stays at 1.50.",
+                    "help": "$DCC_Default_Help",
                     "valueOptions": {
                         "min": 1.10,
                         "max": 5.00,
@@ -58,40 +58,40 @@
                 },
                 {
                     "id": "bDebugDraw:Collision",
-                    "text": "Show box",
+                    "text": "$DCC_ShowBox",
                     "type": "toggle",
-                    "help": "Green ring is the real collision width. Requires TrueHUD. Turn off after testing.",
+                    "help": "$DCC_ShowBox_Help",
                     "valueOptions": {
                         "sourceType": "ModSettingBool"
                     }
                 },
                 {
                     "id": "bPlayerImmovable:Collision",
-                    "text": "Don't get pushed",
+                    "text": "$DCC_NoPush",
                     "type": "toggle",
-                    "help": "NPCs stop on you. They will not slide you.",
+                    "help": "$DCC_NoPush_Help",
                     "valueOptions": {
                         "sourceType": "ModSettingBool"
                     }
                 },
                 {
                     "id": "bTranslationHelper:Collision",
-                    "text": "Attack translation",
+                    "text": "$DCC_AttackTrans",
                     "type": "toggle",
-                    "help": "Lets NPC stepping attacks keep moving until the rings touch.",
+                    "help": "$DCC_AttackTrans_Help",
                     "valueOptions": {
                         "sourceType": "ModSettingBool"
                     }
                 },
                 {
-                    "text": "Weapons",
+                    "text": "$DCC_Header_Weapons",
                     "type": "header"
                 },
                 {
                     "id": "fFist:Collision",
-                    "text": "Fist",
+                    "text": "$DCC_Fist",
                     "type": "slider",
-                    "help": "Empty hands. You and enemies use this size.",
+                    "help": "$DCC_Fist_Help",
                     "valueOptions": {
                         "min": 1.10,
                         "max": 5.00,
@@ -102,9 +102,9 @@
                 },
                 {
                     "id": "fDagger:Collision",
-                    "text": "Dagger",
+                    "text": "$DCC_Dagger",
                     "type": "slider",
-                    "help": "One-handed daggers. You and enemies use this size.",
+                    "help": "$DCC_Dagger_Help",
                     "valueOptions": {
                         "min": 1.10,
                         "max": 5.00,
@@ -115,9 +115,9 @@
                 },
                 {
                     "id": "fSword:Collision",
-                    "text": "Sword",
+                    "text": "$DCC_Sword",
                     "type": "slider",
-                    "help": "One-handed swords. You and enemies use this size.",
+                    "help": "$DCC_Sword_Help",
                     "valueOptions": {
                         "min": 1.10,
                         "max": 5.00,
@@ -128,9 +128,9 @@
                 },
                 {
                     "id": "fLongsword:Collision",
-                    "text": "Longsword",
+                    "text": "$DCC_Longsword",
                     "type": "slider",
-                    "help": "Two-handed swords. You and enemies use this size.",
+                    "help": "$DCC_Longsword_Help",
                     "valueOptions": {
                         "min": 1.10,
                         "max": 5.00,
@@ -141,9 +141,9 @@
                 },
                 {
                     "id": "fWarhammer:Collision",
-                    "text": "Warhammer",
+                    "text": "$DCC_Warhammer",
                     "type": "slider",
-                    "help": "Two-handed warhammers. You and enemies use this size.",
+                    "help": "$DCC_Warhammer_Help",
                     "valueOptions": {
                         "min": 1.10,
                         "max": 5.00,
@@ -154,9 +154,9 @@
                 },
                 {
                     "id": "fBattleaxe:Collision",
-                    "text": "Battleaxe",
+                    "text": "$DCC_Battleaxe",
                     "type": "slider",
-                    "help": "Two-handed battleaxes. You and enemies use this size.",
+                    "help": "$DCC_Battleaxe_Help",
                     "valueOptions": {
                         "min": 1.10,
                         "max": 5.00,
@@ -169,4 +169,3 @@
         }
     ]
 }
-

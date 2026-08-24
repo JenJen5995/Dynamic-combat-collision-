@@ -25,6 +25,22 @@ namespace WallClip
 		return a_alongHk - a_vanillaHk - a_keepDistance;
 	}
 
+	// |nz|/|n| at or above this is a floor, ramp, or stair tread, not a doorframe.
+	// 0.50 = 60 degrees from vertical (typical walkable max slope).
+	inline constexpr float kWalkableNormalZ = 0.50f;
+
+	inline bool IsWalkableSupportNormal(float a_nx, float a_ny, float a_nz)
+	{
+		if (!std::isfinite(a_nx) || !std::isfinite(a_ny) || !std::isfinite(a_nz)) {
+			return false;
+		}
+		const float n2 = a_nx * a_nx + a_ny * a_ny + a_nz * a_nz;
+		if (n2 < 1.0e-8f) {
+			return false;
+		}
+		return std::fabs(a_nz) >= kWalkableNormalZ * std::sqrt(n2);
+	}
+
 	// Positive plane.w => simplex constraint already satisfied, no push this frame.
 	inline constexpr float kSatisfiedSimplexPlaneW = 1.0f;
 	// Havok units. Below this inward speed, treat the player as not walking into them.
@@ -74,6 +90,21 @@ namespace WallClip
 		}
 		if (std::fabs(VanillaWorldStopDistanceHk(0.500f, 0.0f, 0.100f) - 0.500f) > 0.001f) {
 			return false;
+		}
+		if (!IsWalkableSupportNormal(0.0f, 0.0f, 1.0f) ||
+			!IsWalkableSupportNormal(0.0f, 0.0f, -1.0f)) {
+			return false;
+		}
+		if (IsWalkableSupportNormal(1.0f, 0.0f, 0.0f) ||
+			IsWalkableSupportNormal(0.98f, 0.0f, 0.20f)) {
+			return false;
+		}
+		{
+			const float s = 0.5736f;
+			const float c = 0.8192f;
+			if (!IsWalkableSupportNormal(-s, 0.0f, c)) {
+				return false;
+			}
 		}
 		if (!(kSatisfiedSimplexPlaneW > 0.0f) || !std::isfinite(kSatisfiedSimplexPlaneW)) {
 			return false;

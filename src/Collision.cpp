@@ -107,6 +107,17 @@ namespace Collision
 		bool g_rollArmed = false;
 		bool g_postLoadSanitize = false;
 		bool g_playerMountHold = false;
+		bool g_playerFightActive = false;
+		std::uint32_t g_playerFightHold = 0;
+		constexpr std::uint32_t kPlayerFightHoldFrames = 60;
+
+		struct FatNpcBody
+		{
+			RE::hkpRigidBody* body{ nullptr };
+			float extraHk{ 0.0f };
+		};
+		FatNpcBody g_fatNpcBodies[kMaxActors]{};
+		std::uint32_t g_fatNpcCount = 0;
 
 		LowHull DesiredLowHull(RE::Actor* a_actor);
 		bool FindConvexList(
@@ -398,6 +409,26 @@ namespace Collision
 			return false;
 		}
 
+		bool ActorHasCombatSession(RE::Actor* a_actor)
+		{
+			if (!a_actor) {
+				return false;
+			}
+			const auto& data = a_actor->GetActorRuntimeData();
+			if (data.combatController) {
+				return true;
+			}
+			return data.currentCombatTarget.get().get() != nullptr;
+		}
+
+		bool PlayerInCombat(RE::Actor* a_player)
+		{
+			if (!a_player) {
+				return false;
+			}
+			return g_playerFightActive || ActorHasCombatSession(a_player);
+		}
+
 		bool PlayerCombatHullMode(RE::Actor* a_player)
 		{
 			if (!Settings::bEnabled || !a_player) {
@@ -410,7 +441,7 @@ namespace Collision
 				const auto* tdm = TDM_API::GetInterface();
 				return tdm && tdm->GetTargetLockState();
 			}
-			return a_player->IsInCombat();
+			return PlayerInCombat(a_player);
 		}
 
 		LowHull DesiredLowHull(RE::Actor* a_actor)
@@ -460,7 +491,11 @@ namespace Collision
 			if (!VanillaHullScalable(a_radius) && !VcdPresetScalable(a_radius)) {
 				return;
 			}
-			if (g_vcdBase.size() >= kMaxTracked && !g_vcdBase.contains(a_formID)) {
+			if (auto it = g_vcdBase.find(a_formID); it != g_vcdBase.end()) {
+				if (a_radius + ScaleMath::kEpsilon >= it->second) {
+					return;
+				}
+			} else if (g_vcdBase.size() >= kMaxTracked) {
 				return;
 			}
 			g_vcdBase[a_formID] = a_radius;
@@ -477,6 +512,11 @@ namespace Collision
 			default:
 				return false;
 			}
+		}
+
+		bool IsStairWorldLayer(RE::COL_LAYER a_layer)
+		{
+			return a_layer == RE::COL_LAYER::kStairHelper;
 		}
 
 		bool CombatTargetIs(RE::Actor* a_actor, RE::Actor* a_other)
@@ -502,7 +542,7 @@ namespace Collision
 				return false;
 			}
 			if (a_actor == a_player) {
-				return a_player->IsInCombat();
+				return PlayerInCombat(a_player);
 			}
 			if (a_actor->IsAMount()) {
 				return false;
@@ -511,7 +551,7 @@ namespace Collision
 			if (CombatTargetIs(a_player, a_actor) || CombatTargetIs(a_actor, a_player)) {
 				return true;
 			}
-			if (!a_player->IsInCombat()) {
+			if (!PlayerInCombat(a_player)) {
 				return false;
 			}
 			if (a_actor->IsPlayerTeammate()) {
@@ -593,6 +633,35 @@ namespace Collision
 			}
 		}
 
+		void RefreshPlayerFightActive()
+		{
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			if (!player) {
+				g_playerFightActive = false;
+				g_playerFightHold = 0;
+				return;
+			}
+
+			bool live = ActorHasCombatSession(player);
+			if (!live) {
+				ForEachNearbyLoadedActor(player, [&](RE::Actor* a_npc) {
+					if (!live && CombatTargetIs(a_npc, player)) {
+						live = true;
+					}
+				});
+			}
+
+			if (live) {
+				g_playerFightHold = kPlayerFightHoldFrames;
+				g_playerFightActive = true;
+			} else if (g_playerFightHold > 0) {
+				--g_playerFightHold;
+				g_playerFightActive = true;
+			} else {
+				g_playerFightActive = false;
+			}
+		}
+
 		void ForEachFightNpc(RE::Actor* a_player, const std::function<void(RE::Actor*)>& a_fn)
 		{
 			if (!a_player || !a_fn) {
@@ -644,7 +713,7 @@ namespace Collision
 					continue;
 				}
 				const bool inFight = HasCombatTarget(actor.get()) ||
-					(player && player->IsInCombat() && ActorsWithinFightRange(actor.get(), player));
+					(player && PlayerInCombat(player) && ActorsWithinFightRange(actor.get(), player));
 				if (!inFight) {
 					continue;
 				}
@@ -707,7 +776,7 @@ namespace Collision
 							add(target.get());
 						}
 					}
-				} else if (player && player->IsInCombat()) {
+				} else if (player && PlayerInCombat(player)) {
 					add(player);
 					ForEachFightNpc(player, add);
 				}
@@ -1175,6 +1244,145 @@ namespace Collision
 				(kHumanXYRadius * a_slider) / (VanillaHullScalable(a_baseR) ? a_baseR : kHumanXYRadius);
 		}
 
+		FatNpcBody* FindFatNpcBody(RE::hkpRigidBody* a_body)
+		{
+			if (!a_body) {
+				return nullptr;
+			}
+			const auto n = g_fatNpcCount;
+			for (std::uint32_t i = 0; i < n && i < kMaxActors; ++i) {
+				if (g_fatNpcBodies[i].body == a_body) {
+					return &g_fatNpcBodies[i];
+				}
+			}
+			return nullptr;
+		}
+
+		void SoftenRigidWorldContact(RE::hkpRigidBody* a_other, RE::hkContactPoint* a_cp, float a_extraHk)
+		{
+			if (!a_other || !a_cp || a_extraHk <= 0.01f) {
+				return;
+			}
+			if (IsActorCollisionLayer(a_other->collidable.GetCollisionLayer()) ||
+				IsStairWorldLayer(a_other->collidable.GetCollisionLayer())) {
+				return;
+			}
+			const float nx = a_cp->separatingNormal.quad.m128_f32[0];
+			const float ny = a_cp->separatingNormal.quad.m128_f32[1];
+			const float nz = a_cp->separatingNormal.quad.m128_f32[2];
+			if (WallClip::IsWalkableSupportNormal(nx, ny, nz)) {
+				return;
+			}
+			if (nx * nx + ny * ny < 0.35f * 0.35f) {
+				return;
+			}
+			a_cp->separatingNormal.quad.m128_f32[3] += a_extraHk;
+			static bool logged = false;
+			if (!logged) {
+				logged = true;
+				logger::info("npc rigid world-ignore extraHk={:.3f}", a_extraHk);
+			}
+		}
+
+		struct NpcWorldIgnoreListener : RE::hkpContactListener
+		{
+			void ContactPointCallback(const RE::hkpContactPointEvent& a_event) override
+			{
+				if (!a_event.contactPoint || !a_event.bodies[0] || !a_event.bodies[1]) {
+					return;
+				}
+				const FatNpcBody* fat = FindFatNpcBody(a_event.bodies[0]);
+				RE::hkpRigidBody* other = a_event.bodies[1];
+				if (!fat) {
+					fat = FindFatNpcBody(a_event.bodies[1]);
+					other = a_event.bodies[0];
+				}
+				if (!fat) {
+					return;
+				}
+				SoftenRigidWorldContact(other, a_event.contactPoint, fat->extraHk);
+			}
+		};
+		NpcWorldIgnoreListener g_npcWorldIgnore;
+
+		void ForgetFatNpcBody(RE::hkpRigidBody* a_body)
+		{
+			if (!a_body) {
+				return;
+			}
+			for (std::uint32_t i = 0; i < g_fatNpcCount && i < kMaxActors; ++i) {
+				if (g_fatNpcBodies[i].body != a_body) {
+					continue;
+				}
+				a_body->RemoveContactListener(&g_npcWorldIgnore);
+				g_fatNpcBodies[i] = g_fatNpcBodies[g_fatNpcCount - 1];
+				g_fatNpcBodies[g_fatNpcCount - 1] = FatNpcBody{};
+				--g_fatNpcCount;
+				return;
+			}
+		}
+
+		void RememberFatNpcBody(RE::hkpRigidBody* a_body, float a_extraHk)
+		{
+			if (!a_body || a_extraHk <= 0.01f) {
+				ForgetFatNpcBody(a_body);
+				return;
+			}
+			if (auto* existing = FindFatNpcBody(a_body)) {
+				existing->extraHk = a_extraHk;
+				return;
+			}
+			if (g_fatNpcCount >= kMaxActors) {
+				return;
+			}
+			a_body->contactPointCallbackDelay = 0;
+			a_body->AddContactListener(&g_npcWorldIgnore);
+			g_fatNpcBodies[g_fatNpcCount++] = FatNpcBody{ a_body, a_extraHk };
+		}
+
+		void ClearFatNpcBodies()
+		{
+			while (g_fatNpcCount > 0) {
+				ForgetFatNpcBody(g_fatNpcBodies[0].body);
+			}
+		}
+
+		void SyncNpcWorldIgnore(
+			RE::Actor* a_actor,
+			RE::bhkCharacterController* a_controller,
+			float a_target)
+		{
+			if (!a_controller || AsCharProxyController(a_controller)) {
+				return;
+			}
+			auto* rb = a_controller->GetRigidBody();
+			if (!rb) {
+				return;
+			}
+			const bool want = a_actor &&
+				!a_actor->IsPlayerRef() &&
+				Settings::bEnabled &&
+				ScaleMath::NeedsApply(a_target, ScaleMath::kVanilla);
+			if (!want) {
+				ForgetFatNpcBody(rb);
+				return;
+			}
+			float extraWorld = kHumanXYRadius * (a_target - ScaleMath::kVanilla);
+			if (extraWorld < 0.0f) {
+				extraWorld = 0.0f;
+			}
+			RE::hkpListShape* list = nullptr;
+			RE::hkpConvexVerticesShape* convex = nullptr;
+			FindConvexList(a_controller, list, convex);
+			if (convex) {
+				const float live = MeasureConvexXYWorld(convex);
+				if (live > kHumanXYRadius + 1.0f) {
+					extraWorld = live - kHumanXYRadius;
+				}
+			}
+			RememberFatNpcBody(rb, extraWorld * RE::bhkWorld::GetWorldScale());
+		}
+
 		float MeasureConvexXYWorld(RE::hkpConvexVerticesShape* a_convex)
 		{
 			if (!a_convex) {
@@ -1268,7 +1476,7 @@ namespace Collision
 			if (!g_vcdFightOverride || !ActorUsable(a_actor) || !ShouldScaleHull(a_actor)) {
 				return;
 			}
-			if (a_actor->IsInCombat()) {
+			if (a_actor->IsPlayerRef() ? PlayerInCombat(a_actor) : ActorHasCombatSession(a_actor)) {
 				return;
 			}
 
@@ -1277,6 +1485,9 @@ namespace Collision
 			RE::hkpConvexVerticesShape* convex = nullptr;
 			float xyRadius = 0.0f;
 			if (!PeekLiveShape(a_actor, controller, root, convex, xyRadius)) {
+				return;
+			}
+			if (!VanillaHullScalable(xyRadius) && g_tracked.contains(a_actor->GetFormID())) {
 				return;
 			}
 			RememberVcdBase(a_actor->GetFormID(), xyRadius);
@@ -1370,13 +1581,13 @@ namespace Collision
 				return false;
 			}
 
+			if (a_tracked.slideHull.valid) {
+				RE::BSWriteLockGuard lock(world->worldLock);
+				RestoreCombatHull(a_tracked.slideHull, list, convex);
+			}
+
 			const float liveXY = MeasureConvexXYWorld(convex);
 			const float liveH = MeasureConvexHeightWorld(convex);
-			if (a_kind == LowHull::Crouch &&
-				a_tracked.slideActive &&
-				a_tracked.poseShrink == LowHull::Crouch) {
-				return true;
-			}
 
 			const float wantXY = a_kind == LowHull::Slide ?
 				std::max(kMinSlideXYWorld, kSlideXYWorld) :
@@ -1570,24 +1781,7 @@ namespace Collision
 
 		float TargetApplied(const Tracked& a_tracked, float a_slider)
 		{
-			if (a_slider <= ScaleMath::kVanilla + ScaleMath::kEpsilon) {
-				return ScaleMath::kVanilla;
-			}
-			if (!VanillaHullScalable(a_tracked.vanillaRadius)) {
-				return ScaleMath::kVanilla;
-			}
-
-			float applied = (kHumanXYRadius * a_slider) / a_tracked.vanillaRadius;
-			if (!std::isfinite(applied)) {
-				return a_slider;
-			}
-			if (applied < ScaleMath::kEpsilon) {
-				applied = ScaleMath::kEpsilon;
-			}
-			if (applied > kMaxApplied) {
-				applied = kMaxApplied;
-			}
-			return applied;
+			return CombatAppliedFromSlider(a_slider, a_tracked.vanillaRadius);
 		}
 
 		bool ApplyVcdFightScale(
@@ -1689,6 +1883,45 @@ namespace Collision
 			return true;
 		}
 
+		const char* ControllerKindName(RE::bhkCharacterController* a_controller)
+		{
+			if (!a_controller) {
+				return "none";
+			}
+			if (AsCharProxyController(a_controller)) {
+				return "proxy";
+			}
+			if (skyrim_cast<RE::bhkCharRigidBodyController*>(a_controller)) {
+				return "rigid";
+			}
+			return "other";
+		}
+
+		void LogNpcPhysicsOnce(RE::Actor* a_actor, RE::bhkCharacterController* a_controller)
+		{
+			if (!a_actor || a_actor->IsPlayerRef()) {
+				return;
+			}
+			static RE::FormID seen[8]{};
+			static std::uint32_t n = 0;
+			if (n >= 8) {
+				return;
+			}
+			const auto id = a_actor->GetFormID();
+			for (std::uint32_t i = 0; i < n; ++i) {
+				if (seen[i] == id) {
+					return;
+				}
+			}
+			seen[n++] = id;
+			const auto* name = a_actor->GetDisplayFullName();
+			logger::info(
+				"npc physics {:08X} '{}' kind={}",
+				id,
+				name ? name : "",
+				ControllerKindName(a_controller));
+		}
+
 		bool SetActorScale(RE::Actor* a_actor, float a_target)
 		{
 			if (!a_actor) {
@@ -1698,6 +1931,13 @@ namespace Collision
 			auto* controller = a_actor->GetCharController();
 			if (!controller) {
 				return false;
+			}
+
+			if (!a_actor->IsPlayerRef()) {
+				if (ScaleMath::NeedsApply(a_target, ScaleMath::kVanilla)) {
+					LogNpcPhysicsOnce(a_actor, controller);
+				}
+				SyncNpcWorldIgnore(a_actor, controller, a_target);
 			}
 
 			const RE::hkpShape* root = nullptr;
@@ -1744,25 +1984,29 @@ namespace Collision
 				tracked.shape = root;
 				tracked.convex = convex;
 				tracked.applied = ScaleMath::kVanilla;
-				if (g_vcdFightOverride) {
+				if (VanillaHullScalable(xyRadius)) {
+					tracked.vanillaRadius = xyRadius;
+					if (g_vcdFightOverride &&
+						!ScaleMath::NeedsApply(a_target, ScaleMath::kVanilla)) {
+						RememberVcdBase(formID, xyRadius);
+					}
+				} else if (g_vcdFightOverride) {
 					if (auto it = g_vcdBase.find(formID); it != g_vcdBase.end()) {
 						tracked.vanillaRadius = it->second;
-					} else if (!a_actor->IsInCombat() &&
-						(VanillaHullScalable(xyRadius) || VcdPresetScalable(xyRadius))) {
-						RememberVcdBase(formID, xyRadius);
-						tracked.vanillaRadius = xyRadius;
-					} else if (!ScaleMath::IsFinitePositive(tracked.vanillaRadius)) {
-						tracked.vanillaRadius = xyRadius;
+					} else if (!ScaleMath::IsFinitePositive(tracked.vanillaRadius) ||
+						!VanillaHullScalable(tracked.vanillaRadius)) {
+						tracked.vanillaRadius = kHumanXYRadius;
 					}
-				} else {
-					tracked.vanillaRadius = xyRadius;
+				} else if (!VanillaHullScalable(tracked.vanillaRadius)) {
+					tracked.vanillaRadius = kHumanXYRadius;
 				}
 			} else if (tracked.vanillaRadius <= 1.0f &&
 				!ScaleMath::NeedsApply(tracked.applied, ScaleMath::kVanilla) &&
-				xyRadius > 1.0f) {
+				VanillaHullScalable(xyRadius)) {
 				tracked.vanillaRadius = xyRadius;
-			} else if (g_vcdFightOverride && !g_vcdBase.contains(formID) && !a_actor->IsInCombat() &&
-				(VanillaHullScalable(xyRadius) || VcdPresetScalable(xyRadius))) {
+			} else if (g_vcdFightOverride && !g_vcdBase.contains(formID) &&
+				!(a_actor->IsPlayerRef() ? PlayerInCombat(a_actor) : ActorHasCombatSession(a_actor)) &&
+				VanillaHullScalable(xyRadius)) {
 				RememberVcdBase(formID, xyRadius);
 				tracked.vanillaRadius = xyRadius;
 			}
@@ -1786,6 +2030,9 @@ namespace Collision
 				};
 
 				if (low == LowHull::Slide) {
+					return ApplyLowHullShrink(a_actor, controller, tracked, low);
+				}
+				if (low == LowHull::Crouch && tracked.slideHull.valid) {
 					return ApplyLowHullShrink(a_actor, controller, tracked, low);
 				}
 
@@ -1986,6 +2233,7 @@ namespace Collision
 			}
 
 			auto* controller = actor->GetCharController();
+			SyncNpcWorldIgnore(actor.get(), controller, ScaleMath::kVanilla);
 			RE::hkpListShape* list = nullptr;
 			RE::hkpConvexVerticesShape* convex = nullptr;
 			FindConvexList(controller, list, convex);
@@ -1996,7 +2244,8 @@ namespace Collision
 				RestoreCombatHull(it->second.slideHull, list, convex);
 				logger::debug("collision restore slide {:08X}", a_formID);
 			}
-			if (it->second.combatHull.valid && world && convex) {
+			if (it->second.combatHull.valid && world && convex &&
+				ScaleMath::NeedsApply(it->second.applied, ScaleMath::kVanilla)) {
 				RE::BSWriteLockGuard lock(world->worldLock);
 				RestoreCombatHull(it->second.combatHull, list, convex);
 				logger::debug("collision restore snapshot {:08X}", a_formID);
@@ -2004,40 +2253,33 @@ namespace Collision
 			InvalidateCombatHull(it->second);
 			ClearSlideHull(it->second);
 
-			if (!ScaleMath::NeedsApply(it->second.applied, ScaleMath::kVanilla)) {
-				g_tracked.erase(a_formID);
-				return;
-			}
-
-			if (g_vcdFightOverride) {
+			float liveR = convex ? MeasureConvexXYWorld(convex) : 0.0f;
+			if (!ScaleMath::IsFinitePositive(liveR)) {
 				const RE::hkpShape* root = nullptr;
-				RE::hkpConvexVerticesShape* convex = nullptr;
-				float liveR = 0.0f;
-				if (!PeekLiveShape(actor.get(), controller, root, convex, liveR)) {
-					if (g_tracked.size() > kMaxTracked) {
-						g_tracked.erase(a_formID);
-					}
-					return;
+				RE::hkpConvexVerticesShape* liveConvex = nullptr;
+				PeekLiveShape(actor.get(), controller, root, liveConvex, liveR);
+			}
+
+			float baseR = it->second.vanillaRadius;
+			if (g_vcdFightOverride) {
+				if (const auto vcd = VcdBaseRadius(a_formID, baseR); ScaleMath::IsFinitePositive(vcd) &&
+					vcd + 1.0f < liveR) {
+					baseR = vcd;
 				}
-				const float baseR = VcdBaseRadius(a_formID, it->second.vanillaRadius);
-				const float wantR = ScaleMath::FightOverrideWantedRadius(
-					liveR, baseR, ScaleMath::kVanilla, kHumanXYRadius);
-				if (!ScaleMath::RadiusNeedsScale(liveR, wantR)) {
-					g_tracked.erase(a_formID);
-					return;
-				}
-				const float factor = ScaleMath::RadiusScaleFactor(liveR, wantR);
-				if (factor == 0.0f || !ScaleControllerXY(actor.get(), controller, factor)) {
-					if (g_tracked.size() > kMaxTracked) {
-						g_tracked.erase(a_formID);
-					}
-					return;
-				}
+			}
+			if (!VanillaHullScalable(baseR) &&
+				!(g_vcdFightOverride && VcdPresetScalable(baseR) && baseR + 1.0f < liveR)) {
+				baseR = kHumanXYRadius;
+			}
+
+			const float wantR = ScaleMath::FightOverrideWantedRadius(
+				liveR, baseR, ScaleMath::kVanilla, kHumanXYRadius);
+			if (!ScaleMath::IsFinitePositive(liveR) || !ScaleMath::RadiusNeedsScale(liveR, wantR)) {
 				g_tracked.erase(a_formID);
 				return;
 			}
-
-			if (!SetActorScale(actor.get(), ScaleMath::kVanilla)) {
+			const float factor = ScaleMath::RadiusScaleFactor(liveR, wantR);
+			if (factor == 0.0f || !ScaleControllerXY(actor.get(), controller, factor)) {
 				if (g_tracked.size() > kMaxTracked) {
 					g_tracked.erase(a_formID);
 				}
@@ -2352,7 +2594,7 @@ namespace Collision
 					drawExtra(actor.get());
 				}
 			}
-			if (player && (player->IsInCombat() || PlayerCombatHullMode(player))) {
+			if (player && PlayerCombatHullMode(player)) {
 				ForEachFightNpc(player, [&](RE::Actor* a_npc) {
 					drawExtra(a_npc);
 				});
@@ -2409,6 +2651,9 @@ namespace Collision
 			if (!Settings::bEnabled) {
 				return;
 			}
+			if (!PlayerCombatHullMode(RE::PlayerCharacter::GetSingleton())) {
+				return;
+			}
 			if (!a_self || !a_proxy || !a_proxy->shapePhantom || !a_input.constraints) {
 				return;
 			}
@@ -2430,7 +2675,8 @@ namespace Collision
 				tracked->applied > applied) {
 				applied = tracked->applied;
 			}
-			if (!ScaleMath::NeedsApply(applied, ScaleMath::kVanilla)) {
+			if (!ScaleMath::NeedsApply(applied, ScaleMath::kVanilla) &&
+				PlayerCombatHullMode(RE::PlayerCharacter::GetSingleton())) {
 				RE::hkpListShape* list = nullptr;
 				RE::hkpConvexVerticesShape* convex = nullptr;
 				if (FindConvex(a_proxy->shapePhantom, list, convex)) {
@@ -2471,12 +2717,17 @@ namespace Collision
 			for (RE::hkArray<RE::hkpRootCdPoint>::size_type i = 0; i < limit; ++i) {
 				const auto& pt = a_manifold[i];
 				const RE::hkpCollidable* other = ManifoldOtherCollidable(pt, selfCol);
-				if (!other || IsActorCollisionLayer(other->GetCollisionLayer())) {
+				if (!other || IsActorCollisionLayer(other->GetCollisionLayer()) ||
+					IsStairWorldLayer(other->GetCollisionLayer())) {
 					continue;
 				}
 
 				const float nx = pt.contact.separatingNormal.quad.m128_f32[0];
 				const float ny = pt.contact.separatingNormal.quad.m128_f32[1];
+				const float nz = pt.contact.separatingNormal.quad.m128_f32[2];
+				if (WallClip::IsWalkableSupportNormal(nx, ny, nz)) {
+					continue;
+				}
 				const float nxy2 = nx * nx + ny * ny;
 				if (nxy2 < 0.35f * 0.35f) {
 					continue;
@@ -2500,6 +2751,10 @@ namespace Collision
 				auto& constraint = a_input.constraints[i];
 				const float nx = constraint.plane.quad.m128_f32[0];
 				const float ny = constraint.plane.quad.m128_f32[1];
+				const float nz = constraint.plane.quad.m128_f32[2];
+				if (WallClip::IsWalkableSupportNormal(nx, ny, nz)) {
+					continue;
+				}
 				const float nxy2 = nx * nx + ny * ny;
 				if (nxy2 < 0.35f * 0.35f) {
 					continue;
@@ -2520,6 +2775,9 @@ namespace Collision
 			RE::hkpSimplexSolverInput& a_input)
 		{
 			if (!Settings::bEnabled || !Settings::bPlayerImmovable) {
+				return;
+			}
+			if (!PlayerCombatHullMode(RE::PlayerCharacter::GetSingleton())) {
 				return;
 			}
 			if (!a_self || !a_proxy || !a_proxy->shapePhantom || !a_input.constraints) {
@@ -2580,6 +2838,9 @@ namespace Collision
 			RE::hkpSimplexSolverInput& a_input)
 		{
 			if (!Settings::bEnabled || !Settings::bTranslationHelper) {
+				return;
+			}
+			if (!PlayerCombatHullMode(RE::PlayerCharacter::GetSingleton())) {
 				return;
 			}
 			if (PlayerMountBlocksCombat(RE::PlayerCharacter::GetSingleton())) {
@@ -2651,6 +2912,9 @@ namespace Collision
 			RE::hkpSimplexSolverInput& a_input)
 		{
 			if (!Settings::bEnabled || !Settings::bPlayerImmovable) {
+				return;
+			}
+			if (!PlayerCombatHullMode(RE::PlayerCharacter::GetSingleton())) {
 				return;
 			}
 			if (PlayerMountBlocksCombat(RE::PlayerCharacter::GetSingleton())) {
@@ -2809,11 +3073,18 @@ namespace Collision
 			const float playerSlider = ScaleForPlayerWeapon(player);
 			if (player && PlayerCombatHullMode(player)) {
 				add(player, playerSlider);
-			}
-			if (player) {
-				ForEachFightNpc(player, [&](RE::Actor* a_npc) {
-					add(a_npc, ScaleForActor(a_npc, player, playerSlider));
-				});
+				if (Settings::bLockTargetOnly) {
+					const auto* tdm = TDM_API::GetInterface();
+					if (tdm) {
+						if (const auto target = tdm->GetCurrentTarget().get()) {
+							add(target.get(), ScaleForActor(target.get(), player, playerSlider));
+						}
+					}
+				} else {
+					ForEachFightNpc(player, [&](RE::Actor* a_npc) {
+						add(a_npc, ScaleForActor(a_npc, player, playerSlider));
+					});
+				}
 			}
 			for (std::uint32_t i = 0; i < n; ++i) {
 				g_phantomScales[i] = tmp[i];
@@ -2867,17 +3138,34 @@ namespace Collision
 			if (!slot) {
 				return;
 			}
-			if (!ScaleMath::IsFinitePositive(slot->vanillaR)) {
-				slot->vanillaR = live;
-			}
 
 			const auto* playerProxy = PlayerCharacterProxy();
 			const bool isPlayer = a_proxy == playerProxy ||
 				(playerProxy && a_proxy->shapePhantom == playerProxy->shapePhantom);
 			slot->isPlayer = isPlayer;
 
+			const bool combat = PlayerCombatHullMode(player);
+			if (!combat) {
+				if (VanillaHullScalable(live)) {
+					slot->vanillaR = live;
+				} else if (!VanillaHullScalable(slot->vanillaR)) {
+					float base = kHumanXYRadius;
+					if (g_vcdFightOverride && isPlayer) {
+						const float vcd = VcdBaseRadius(player->GetFormID(), 0.0f);
+						if (ScaleMath::IsFinitePositive(vcd) && vcd + 1.0f < live) {
+							base = vcd;
+						}
+					}
+					slot->vanillaR = base;
+				}
+			} else if (VanillaHullScalable(live) && !VanillaHullScalable(slot->vanillaR)) {
+				slot->vanillaR = live;
+			} else if (!VanillaHullScalable(slot->vanillaR)) {
+				slot->vanillaR = kHumanXYRadius;
+			}
+
 			float slider = ScaleMath::kVanilla;
-			if (PlayerCombatHullMode(player)) {
+			if (combat) {
 				if (isPlayer) {
 					slider = ScaleForPlayerWeapon(player);
 				} else {
@@ -2898,18 +3186,41 @@ namespace Collision
 							ScaleForPlayerWeapon(player);
 					}
 				}
-			}
-
-			const auto n = g_phantomCount;
-			for (std::uint32_t i = 0; i < n && i < kMaxActors; ++i) {
-				if (g_phantomScales[i].proxy == a_proxy) {
-					slider = g_phantomScales[i].slider;
-					break;
+				const auto n = g_phantomCount;
+				for (std::uint32_t i = 0; i < n && i < kMaxActors; ++i) {
+					if (g_phantomScales[i].proxy == a_proxy) {
+						slider = g_phantomScales[i].slider;
+						break;
+					}
 				}
 			}
 
-			const float want = ScaleMath::FightOverrideWantedRadius(
-				live, slot->vanillaR, slider, kHumanXYRadius);
+			float want = live;
+			if (combat) {
+				want = ScaleMath::FightOverrideWantedRadius(
+					live, slot->vanillaR, slider, kHumanXYRadius);
+				if (isPlayer) {
+					auto* tracked = FindTrackedByController(
+						static_cast<RE::bhkCharacterController*>(a_self));
+					if (tracked && tracked->slideActive) {
+						if (tracked->poseShrink == LowHull::Slide) {
+							want = std::max(kMinSlideXYWorld, kSlideXYWorld);
+						} else if (tracked->poseShrink == LowHull::Crouch) {
+							want *= kCrouchHullScale;
+						}
+					}
+				}
+			} else if (live > kMaxVanillaXY) {
+				float idleR = VanillaHullScalable(slot->vanillaR) ? slot->vanillaR : kHumanXYRadius;
+				if (g_vcdFightOverride && isPlayer) {
+					const float vcd = VcdBaseRadius(player->GetFormID(), 0.0f);
+					if (ScaleMath::IsFinitePositive(vcd) && vcd + 1.0f < live) {
+						idleR = vcd;
+					}
+				}
+				want = ScaleMath::FightOverrideWantedRadius(
+					live, idleR, ScaleMath::kVanilla, kHumanXYRadius);
+			}
 			if (ScaleMath::RadiusNeedsScale(live, want)) {
 				const float factor = ScaleMath::RadiusScaleFactor(live, want);
 				if (factor != 0.0f) {
@@ -2933,14 +3244,14 @@ namespace Collision
 				logger::info(
 					"combat hull phantom player xy {:.1f}->{:.1f} slider={:.2f}",
 					live,
-					want,
+					slot->liveR,
 					slider);
 			} else if (!isPlayer && !loggedNpc && ScaleMath::NeedsApply(slider, ScaleMath::kVanilla)) {
 				loggedNpc = true;
 				logger::info(
 					"combat hull phantom npc xy {:.1f}->{:.1f} slider={:.2f} vanilla={:.1f}",
 					live,
-					want,
+					slot->liveR,
 					slider,
 					slot->vanillaR);
 			}
@@ -2955,6 +3266,15 @@ namespace Collision
 			const RE::hkArray<RE::hkpRootCdPoint>& a_manifold,
 			RE::hkpSimplexSolverInput& a_input)
 		{
+			static bool loggedNpcProxyTick = false;
+			if (!loggedNpcProxyTick && a_proxy) {
+				const auto* playerProxy = PlayerCharacterProxy();
+				if (playerProxy && a_proxy != playerProxy &&
+					!(playerProxy->shapePhantom && a_proxy->shapePhantom == playerProxy->shapePhantom)) {
+					loggedNpcProxyTick = true;
+					logger::info("proxy ProcessConstraints ran for non-player");
+				}
+			}
 			ApplyCombatHullOnPhantom(a_self, a_proxy);
 			_ProcessConstraints(a_self, a_proxy, a_manifold, a_input);
 			FilterWorldSolverConstraints(a_self, a_proxy, a_manifold, a_input);
@@ -2976,7 +3296,8 @@ namespace Collision
 				_CharacterInteraction(a_self, a_proxy, a_otherProxy, a_contact);
 				return;
 			}
-			if (PlayerMountBlocksCombat(RE::PlayerCharacter::GetSingleton())) {
+			if (!PlayerCombatHullMode(RE::PlayerCharacter::GetSingleton()) ||
+				PlayerMountBlocksCombat(RE::PlayerCharacter::GetSingleton())) {
 				_CharacterInteraction(a_self, a_proxy, a_otherProxy, a_contact);
 				return;
 			}
@@ -3109,7 +3430,7 @@ namespace Collision
 			++g_hullCloseFrame;
 
 			auto* player = RE::PlayerCharacter::GetSingleton();
-			if (!player || !player->IsInCombat() || PlayerMountBlocksCombat(player)) {
+			if (!player || !PlayerCombatHullMode(player) || PlayerMountBlocksCombat(player)) {
 				return;
 			}
 			auto* playerCtrl = player->GetCharController();
@@ -3118,9 +3439,6 @@ namespace Collision
 			}
 			auto* playerTracked = FindTrackedByController(playerCtrl);
 			if (playerTracked && playerTracked->slideActive) {
-				return;
-			}
-			if (!playerTracked || !ScaleMath::NeedsApply(playerTracked->applied, ScaleMath::kVanilla)) {
 				return;
 			}
 
@@ -3236,7 +3554,7 @@ namespace Collision
 			}
 
 			auto* player = RE::PlayerCharacter::GetSingleton();
-			if (!player || PlayerMountBlocksCombat(player)) {
+			if (!player || !PlayerCombatHullMode(player) || PlayerMountBlocksCombat(player)) {
 				return;
 			}
 			auto* playerCtrl = player->GetCharController();
@@ -3333,6 +3651,7 @@ namespace Collision
 			_CharacterInteraction = vtbl.write_vfunc(4, CharacterInteractionThunk);
 			logger::info("Installed world-contact, player-actor, and NPC-vs-player wall filters on bhkCharProxyController");
 			logger::info("npc hull: Actor::IsDead() virtual ignored; using ActorState lifeState");
+			logger::info("npc rigid world-ignore: contact listener on fat NPC rigid bodies");
 		}
 	}
 
@@ -3349,10 +3668,13 @@ namespace Collision
 		for (const auto id : ids) {
 			RestoreForm(id);
 		}
+		ClearFatNpcBodies();
 		g_tracked.clear();
 		g_vcdBase.clear();
 		g_postLoadSanitize = true;
 		g_playerMountHold = false;
+		g_playerFightActive = false;
+		g_playerFightHold = 0;
 		ClearSlideSession();
 		ClearRollArmed();
 	}
@@ -3385,6 +3707,8 @@ namespace Collision
 			return;
 		}
 
+		RefreshPlayerFightActive();
+
 		if (auto* player = RE::PlayerCharacter::GetSingleton()) {
 			if (PlayerMountBlocksCombat(player)) {
 				RestoreForm(player->GetFormID());
@@ -3397,7 +3721,9 @@ namespace Collision
 		static std::uint32_t frames = 0;
 		bool fastCombatTick = false;
 		if (auto* player = RE::PlayerCharacter::GetSingleton()) {
-			if (player->IsInCombat()) {
+			if (PlayerInCombat(player)) {
+				fastCombatTick = true;
+			} else if (!g_tracked.empty()) {
 				fastCombatTick = true;
 			} else if (Settings::bAllyCombatCollision) {
 				if (const auto* lists = RE::ProcessLists::GetSingleton()) {
@@ -3411,8 +3737,6 @@ namespace Collision
 						}
 					}
 				}
-			} else if (const auto it = g_tracked.find(player->GetFormID()); it != g_tracked.end()) {
-				fastCombatTick = it->second.slideActive;
 			}
 			if (!fastCombatTick && PlayerNeedsSlideTrack(player)) {
 				fastCombatTick = true;
@@ -3506,9 +3830,18 @@ namespace Collision
 			if (Settings::bEnabled && PlayerCombatHullMode(livePlayer)) {
 				const float playerSlider = ScaleForPlayerWeapon(livePlayer);
 				SetActorScale(livePlayer, playerSlider);
-				ForEachFightNpc(livePlayer, [&](RE::Actor* a_npc) {
-					SetActorScale(a_npc, ScaleForActor(a_npc, livePlayer, playerSlider));
-				});
+				if (Settings::bLockTargetOnly) {
+					const auto* tdm = TDM_API::GetInterface();
+					if (tdm) {
+						if (const auto target = tdm->GetCurrentTarget().get()) {
+							SetActorScale(target.get(), ScaleForActor(target.get(), livePlayer, playerSlider));
+						}
+					}
+				} else {
+					ForEachFightNpc(livePlayer, [&](RE::Actor* a_npc) {
+						SetActorScale(a_npc, ScaleForActor(a_npc, livePlayer, playerSlider));
+					});
+				}
 			}
 		}
 		RebuildPhantomCache();

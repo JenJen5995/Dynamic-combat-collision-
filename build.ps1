@@ -152,6 +152,7 @@ function Copy-DccPackage {
     @{ Rel = "DynamicCombatCollision.esp" },
     @{ Rel = "Scripts\DynamicCombatCollisionMCM.pex" },
     @{ Rel = "MCM\Config\DynamicCombatCollision"; IsDir = $true },
+    @{ Rel = "Interface\Translations"; IsDir = $true },
     @{ Rel = "SKSE\Plugins\DynamicCombatCollision.dll"; Src = $DllPath }
   )
 
@@ -212,6 +213,7 @@ if ($built.ContainsKey("flatrim") -and $VortexModPath -and (Test-Path $VortexMod
     @{ Rel = "DynamicCombatCollision.esp" },
     @{ Rel = "Scripts\DynamicCombatCollisionMCM.pex" },
     @{ Rel = "MCM\Config\DynamicCombatCollision"; IsDir = $true },
+    @{ Rel = "Interface\Translations"; IsDir = $true },
     @{ Rel = "SKSE\Plugins\DynamicCombatCollision.dll"; Src = $built["flatrim"] }
   )
   $DataRoot = Join-Path $Root "data"
