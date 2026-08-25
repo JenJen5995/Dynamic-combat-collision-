@@ -42,6 +42,7 @@ namespace Collision
 		constexpr float kMaxVanillaXY = 24.0f;
 		constexpr float kMaxVcdXY = 96.0f;
 		constexpr float kMaxApplied = 8.00f;
+		constexpr float kMaxDepenetrateWorld = 48.0f;
 		constexpr float kHullCloseGapWorld = 250.0f;
 		constexpr float kNpcFightRangeWorld = 512.0f;
 		constexpr float kHullCloseEpsWorld = 2.0f;
@@ -469,6 +470,28 @@ namespace Collision
 		bool VcdPresetScalable(float a_radius)
 		{
 			return a_radius >= kMinVanillaXY && a_radius <= kMaxVcdXY;
+		}
+
+		float MaxCombatXyWorld()
+		{
+			return g_vcdFightOverride ? kMaxVcdXY : (kHumanXYRadius * ScaleMath::kMaxScale);
+		}
+
+		bool CombatFatWithinCap(float a_liveRadius)
+		{
+			return ScaleMath::IsFinitePositive(a_liveRadius) &&
+				a_liveRadius <= MaxCombatXyWorld() + 1.0f;
+		}
+
+		bool OversizedForCombat(float a_liveRadius)
+		{
+			return ScaleMath::IsFinitePositive(a_liveRadius) &&
+				a_liveRadius > MaxCombatXyWorld() + 1.0f;
+		}
+
+		float MaxDepenetrateHk()
+		{
+			return kMaxDepenetrateWorld * RE::bhkWorld::GetWorldScale();
 		}
 
 		float VcdBaseRadius(RE::FormID a_formID, float a_fallback)
@@ -1305,6 +1328,31 @@ namespace Collision
 		};
 		NpcWorldIgnoreListener g_npcWorldIgnore;
 
+		bool FatNpcListenerAttached(RE::hkpRigidBody* a_body)
+		{
+			if (!a_body || !a_body->world) {
+				return false;
+			}
+			struct ListenerArray
+			{
+				RE::hkpContactListener** data;
+				std::uint16_t size;
+				std::uint16_t capacityAndFlags;
+				std::uint32_t pad;
+			};
+			static_assert(sizeof(ListenerArray) == sizeof(RE::hkSmallArray<RE::hkpContactListener*>));
+			const auto& listeners = *reinterpret_cast<const ListenerArray*>(&a_body->contactListeners);
+			if (!listeners.data || listeners.size == 0) {
+				return false;
+			}
+			for (std::uint16_t i = 0; i < listeners.size; ++i) {
+				if (listeners.data[i] == &g_npcWorldIgnore) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 		void ForgetFatNpcBody(RE::hkpRigidBody* a_body)
 		{
 			if (!a_body) {
@@ -1314,7 +1362,9 @@ namespace Collision
 				if (g_fatNpcBodies[i].body != a_body) {
 					continue;
 				}
-				a_body->RemoveContactListener(&g_npcWorldIgnore);
+				if (FatNpcListenerAttached(a_body)) {
+					a_body->RemoveContactListener(&g_npcWorldIgnore);
+				}
 				g_fatNpcBodies[i] = g_fatNpcBodies[g_fatNpcCount - 1];
 				g_fatNpcBodies[g_fatNpcCount - 1] = FatNpcBody{};
 				--g_fatNpcCount;
@@ -1342,8 +1392,9 @@ namespace Collision
 
 		void ClearFatNpcBodies()
 		{
-			while (g_fatNpcCount > 0) {
-				ForgetFatNpcBody(g_fatNpcBodies[0].body);
+			g_fatNpcCount = 0;
+			for (auto& entry : g_fatNpcBodies) {
+				entry = FatNpcBody{};
 			}
 		}
 
@@ -1833,7 +1884,12 @@ namespace Collision
 			}
 
 			if (skipUniformScale) {
-				a_tracked.applied = combatApplied;
+				a_tracked.applied = ScaleMath::kVanilla;
+				return true;
+			}
+
+			if (OversizedForCombat(liveRadius)) {
+				a_tracked.applied = ScaleMath::kVanilla;
 				return true;
 			}
 
@@ -1993,12 +2049,11 @@ namespace Collision
 				} else if (g_vcdFightOverride) {
 					if (auto it = g_vcdBase.find(formID); it != g_vcdBase.end()) {
 						tracked.vanillaRadius = it->second;
-					} else if (!ScaleMath::IsFinitePositive(tracked.vanillaRadius) ||
-						!VanillaHullScalable(tracked.vanillaRadius)) {
-						tracked.vanillaRadius = kHumanXYRadius;
+					} else if (ScaleMath::IsFinitePositive(xyRadius)) {
+						tracked.vanillaRadius = xyRadius;
 					}
-				} else if (!VanillaHullScalable(tracked.vanillaRadius)) {
-					tracked.vanillaRadius = kHumanXYRadius;
+				} else if (ScaleMath::IsFinitePositive(xyRadius)) {
+					tracked.vanillaRadius = xyRadius;
 				}
 			} else if (tracked.vanillaRadius <= 1.0f &&
 				!ScaleMath::NeedsApply(tracked.applied, ScaleMath::kVanilla) &&
@@ -2068,13 +2123,18 @@ namespace Collision
 				}
 
 				const float targetApplied = combatTargetApplied;
-				if (ScaleMath::NeedsApply(a_target, ScaleMath::kVanilla) &&
-					!VanillaHullScalable(tracked.vanillaRadius)) {
+				if (OversizedForCombat(xyRadius)) {
 					static RE::FormID lastSizeSkip = 0;
 					if (formID != lastSizeSkip) {
 						lastSizeSkip = formID;
-						logger::debug("skip hull size {:08X} vanillaR={:.1f}", formID, tracked.vanillaRadius);
+						logger::debug(
+							"skip hull size {:08X} vanillaR={:.1f} liveR={:.1f}",
+							formID,
+							tracked.vanillaRadius,
+							xyRadius);
 					}
+					tracked.applied = ScaleMath::kVanilla;
+					return finishPose(true);
 				}
 				if (!ScaleMath::NeedsApply(tracked.applied, targetApplied)) {
 					MaybeSnapshotCombatHull(
@@ -2151,13 +2211,18 @@ namespace Collision
 			}
 
 			const float targetApplied = combatTargetApplied;
-			if (ScaleMath::NeedsApply(a_target, ScaleMath::kVanilla) &&
-				!VanillaHullScalable(tracked.vanillaRadius)) {
+			if (OversizedForCombat(xyRadius)) {
 				static RE::FormID lastSizeSkip = 0;
 				if (formID != lastSizeSkip) {
 					lastSizeSkip = formID;
-					logger::debug("skip hull size {:08X} vanillaR={:.1f}", formID, tracked.vanillaRadius);
+					logger::debug(
+						"skip hull size {:08X} vanillaR={:.1f} liveR={:.1f}",
+						formID,
+						tracked.vanillaRadius,
+						xyRadius);
 				}
+				tracked.applied = ScaleMath::kVanilla;
+				return true;
 			}
 			if (!ScaleMath::NeedsApply(tracked.applied, targetApplied)) {
 				MaybeSnapshotCombatHull(
@@ -2269,12 +2334,18 @@ namespace Collision
 			}
 			if (!VanillaHullScalable(baseR) &&
 				!(g_vcdFightOverride && VcdPresetScalable(baseR) && baseR + 1.0f < liveR)) {
-				baseR = kHumanXYRadius;
+				g_tracked.erase(a_formID);
+				return;
+			}
+			if (OversizedForCombat(liveR)) {
+				g_tracked.erase(a_formID);
+				return;
 			}
 
 			const float wantR = ScaleMath::FightOverrideWantedRadius(
 				liveR, baseR, ScaleMath::kVanilla, kHumanXYRadius);
-			if (!ScaleMath::IsFinitePositive(liveR) || !ScaleMath::RadiusNeedsScale(liveR, wantR)) {
+			if (!ScaleMath::IsFinitePositive(liveR) || !ScaleMath::RadiusNeedsScale(liveR, wantR) ||
+				!CombatFatWithinCap(liveR) || !CombatFatWithinCap(wantR)) {
 				g_tracked.erase(a_formID);
 				return;
 			}
@@ -2681,7 +2752,7 @@ namespace Collision
 				RE::hkpConvexVerticesShape* convex = nullptr;
 				if (FindConvex(a_proxy->shapePhantom, list, convex)) {
 					const float live = MeasureConvexXYWorld(convex);
-					if (live > kMaxVanillaXY) {
+					if (live > kMaxVanillaXY && CombatFatWithinCap(live)) {
 						applied = live / kHumanXYRadius;
 					}
 				}
@@ -2971,7 +3042,8 @@ namespace Collision
 			const float recover = a_proxy->penetrationRecoverySpeed > 1.0f ?
 				a_proxy->penetrationRecoverySpeed :
 				1.0f;
-			const float wantVn = (combined - dist) * recover;
+			const float overlap = ScaleMath::ClampDepenetration(combined - dist, MaxDepenetrateHk());
+			const float wantVn = overlap * recover;
 			if (vn < wantVn) {
 				const float add = wantVn - vn;
 				vx += nxx * add;
@@ -3010,7 +3082,7 @@ namespace Collision
 				constraint.plane.quad.m128_f32[1] = nyy;
 				constraint.plane.quad.m128_f32[2] = 0.0f;
 				constraint.plane.quad.m128_f32[3] =
-					WallClip::VanillaWorldStopDistanceHk(dist, combined, 0.0f);
+					WallClip::VanillaWorldStopDistanceHk(dist, dist + overlap, 0.0f);
 				constraint.velocity.quad.m128_f32[0] = 0.0f;
 				constraint.velocity.quad.m128_f32[1] = 0.0f;
 				constraint.velocity.quad.m128_f32[2] = 0.0f;
@@ -3149,19 +3221,21 @@ namespace Collision
 				if (VanillaHullScalable(live)) {
 					slot->vanillaR = live;
 				} else if (!VanillaHullScalable(slot->vanillaR)) {
-					float base = kHumanXYRadius;
+					float base = live;
 					if (g_vcdFightOverride && isPlayer) {
 						const float vcd = VcdBaseRadius(player->GetFormID(), 0.0f);
 						if (ScaleMath::IsFinitePositive(vcd) && vcd + 1.0f < live) {
 							base = vcd;
 						}
 					}
-					slot->vanillaR = base;
+					if (ScaleMath::IsFinitePositive(base)) {
+						slot->vanillaR = base;
+					}
 				}
 			} else if (VanillaHullScalable(live) && !VanillaHullScalable(slot->vanillaR)) {
 				slot->vanillaR = live;
-			} else if (!VanillaHullScalable(slot->vanillaR)) {
-				slot->vanillaR = kHumanXYRadius;
+			} else if (!VanillaHullScalable(slot->vanillaR) && ScaleMath::IsFinitePositive(live)) {
+				slot->vanillaR = live;
 			}
 
 			float slider = ScaleMath::kVanilla;
@@ -3210,7 +3284,7 @@ namespace Collision
 						}
 					}
 				}
-			} else if (live > kMaxVanillaXY) {
+			} else if (live > kMaxVanillaXY && CombatFatWithinCap(live)) {
 				float idleR = VanillaHullScalable(slot->vanillaR) ? slot->vanillaR : kHumanXYRadius;
 				if (g_vcdFightOverride && isPlayer) {
 					const float vcd = VcdBaseRadius(player->GetFormID(), 0.0f);
@@ -3221,14 +3295,19 @@ namespace Collision
 				want = ScaleMath::FightOverrideWantedRadius(
 					live, idleR, ScaleMath::kVanilla, kHumanXYRadius);
 			}
-			if (ScaleMath::RadiusNeedsScale(live, want)) {
+			if (ScaleMath::RadiusNeedsScale(live, want) &&
+				CombatFatWithinCap(live) && CombatFatWithinCap(want)) {
 				const float factor = ScaleMath::RadiusScaleFactor(live, want);
 				if (factor != 0.0f) {
 					ScaleConvexXYInPlace(list, convex, factor);
 				}
 			}
 
-			slot->applied = CombatAppliedFromSlider(slider, slot->vanillaR);
+			if (OversizedForCombat(live)) {
+				slot->applied = ScaleMath::kVanilla;
+			} else {
+				slot->applied = CombatAppliedFromSlider(slider, slot->vanillaR);
+			}
 			g_thunkAppliedThisCall = slot->applied;
 			const float inv = RE::bhkWorld::GetWorldScaleInverse();
 			const auto& translation = a_proxy->shapePhantom->motionState.transform.translation;
@@ -3362,7 +3441,7 @@ namespace Collision
 				const float recover = a_proxy->penetrationRecoverySpeed > 1.0f ?
 					a_proxy->penetrationRecoverySpeed :
 					1.0f;
-				wantVn = (keep - dist) * recover;
+				wantVn = ScaleMath::ClampDepenetration(keep - dist, MaxDepenetrateHk()) * recover;
 			}
 			if (vn < wantVn) {
 				const float add = wantVn - vn;
@@ -3628,7 +3707,8 @@ namespace Collision
 					outVel.quad.m128_f32[1] -= outVn * nyy;
 				}
 
-				const float pen = combined - dist;
+				const float pen = ScaleMath::ClampDepenetration(
+					combined - dist, MaxDepenetrateHk());
 				npcPos.quad.m128_f32[0] += nxx * pen;
 				npcPos.quad.m128_f32[1] += nyy * pen;
 				npcCtrl->SetPositionImpl(npcPos, false, false);

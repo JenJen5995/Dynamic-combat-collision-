@@ -19,7 +19,10 @@ namespace MenuUI
 				return it->second.c_str();
 			}
 			std::string translated;
-			if (SKSE::Translation::Translate(a_key, translated) && !translated.empty()) {
+			if (SKSE::Translation::Translate(a_key, translated) &&
+				!translated.empty() &&
+				translated != a_key &&
+				!translated.starts_with('$')) {
 				const auto [ins, _] = cache.emplace(a_key, std::move(translated));
 				return ins->second.c_str();
 			}

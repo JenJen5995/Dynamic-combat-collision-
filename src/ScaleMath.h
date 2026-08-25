@@ -53,6 +53,20 @@ namespace ScaleMath
 		return a_factor;
 	}
 
+	inline float ClampDepenetration(float a_pen, float a_max)
+	{
+		if (!std::isfinite(a_pen) || a_pen <= 0.0f) {
+			return 0.0f;
+		}
+		if (!std::isfinite(a_max) || a_max <= 0.0f) {
+			return 0.0f;
+		}
+		if (a_pen > a_max) {
+			return a_max;
+		}
+		return a_pen;
+	}
+
 	inline void ScaleXY(float& a_x, float& a_y, float a_factor)
 	{
 		a_x *= a_factor;
@@ -158,6 +172,18 @@ namespace ScaleMath
 			return false;
 		}
 		if (ClampGrowFactor(0.0f, 1.08f) != 0.0f) {
+			return false;
+		}
+		if (std::fabs(ClampDepenetration(12.0f, 48.0f) - 12.0f) > 0.0001f) {
+			return false;
+		}
+		if (std::fabs(ClampDepenetration(400.0f, 48.0f) - 48.0f) > 0.0001f) {
+			return false;
+		}
+		if (ClampDepenetration(-1.0f, 48.0f) != 0.0f) {
+			return false;
+		}
+		if (ClampDepenetration(10.0f, 0.0f) != 0.0f) {
 			return false;
 		}
 		if (std::fabs(ClampScale(5.0f) - 5.0f) > 0.0001f) {
