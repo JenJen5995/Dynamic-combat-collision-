@@ -10,7 +10,17 @@
 #include <locale>
 #include <string>
 
-static auto menuFramework = GetModuleHandleA("SKSEMenuFramework");
+// Resolve on first use (DataLoaded), not at DCC DLL load. GetModuleHandle at
+// static init is null forever if this plugin loads before SKSEMenuFramework.
+inline HMODULE SKSEMenuFramework_GetModule()
+{
+    static HMODULE handle = nullptr;
+    if (!handle) {
+        handle = GetModuleHandleA("SKSEMenuFramework");
+    }
+    return handle;
+}
+#define menuFramework SKSEMenuFramework_GetModule()
 #define MENU_WINDOW SKSEMenuFramework::Model::WindowInterface*
 
 namespace SKSEMenuFramework {
@@ -42,7 +52,10 @@ namespace SKSEMenuFramework {
     }
 
     inline void AddSectionItem(std::string menu, Model::RenderFunction rendererFunction) {
-        static auto func = Internal::GetFunction<Model::AddSectionItemFunction>("AddSectionItem");
+        static Model::AddSectionItemFunction func = nullptr;
+        if (!func) {
+            func = Internal::GetFunction<Model::AddSectionItemFunction>("AddSectionItem");
+        }
         if (func) {
             return func((Internal::key + "/" + menu).c_str(), rendererFunction);
         }
@@ -11171,3 +11184,4 @@ namespace ImGui {
     }
 
 }
+#undef menuFramework

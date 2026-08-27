@@ -9,6 +9,8 @@
 #	include "MenuUI.h"
 #endif
 
+#include <filesystem>
+
 namespace
 {
 	void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
@@ -16,24 +18,20 @@ namespace
 		switch (a_msg->type) {
 		case SKSE::MessagingInterface::kPostLoad:
 			if (TDM_API::Resolve()) {
-				logger::info("Obtained True Directional Movement API");
+				logger::debug("True Directional Movement API ready");
 			} else {
-				logger::warn("True Directional Movement API not found - lock-only mode will do nothing");
+				logger::warn("True Directional Movement API not found - lock-on only will do nothing");
 			}
-			if (TRUEHUD::Resolve()) {
-				logger::info("Obtained TrueHUD API");
-			} else {
-				logger::warn("TrueHUD API not found - collision debug draw will do nothing");
-			}
+			TRUEHUD::Resolve();
 			if (GetModuleHandleA("VariadicCollisionDynamics.dll")) {
 				Collision::SetVcdFightOverride(true);
-				logger::info("Variadic Collision Dynamics detected - fight hull override enabled");
+				logger::info("Variadic Collision Dynamics detected");
 			} else {
 				Collision::SetVcdFightOverride(false);
 			}
 			if (GetModuleHandleA("SkyParkourNG.dll") || GetModuleHandleA("SkyParkour.dll")) {
 				Collision::SetSkyParkourPresent(true);
-				logger::info("SkyParkour detected - crouch-slide hull shrink enabled");
+				logger::info("SkyParkour detected");
 			} else {
 				Collision::SetSkyParkourPresent(false);
 			}
@@ -44,7 +42,9 @@ namespace
 		case SKSE::MessagingInterface::kDataLoaded:
 			Settings::Load();
 			Collision::Reset();
-			SKSE::Translation::ParseTranslation("DynamicCombatCollision");
+			if (std::filesystem::exists(L"Data/Interface/Translations/DynamicCombatCollision_ENGLISH.txt")) {
+				SKSE::Translation::ParseTranslation("DynamicCombatCollision");
+			}
 #ifdef DCC_MENU_UI
 			MenuUI::Register();
 #endif

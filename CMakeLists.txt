@@ -4,7 +4,7 @@ if(DEFINED ENV{VCPKG_ROOT} AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
   set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
 endif()
 
-project(DynamicCombatCollision VERSION 1.4.0 LANGUAGES CXX)
+project(DynamicCombatCollision VERSION 1.4.2 LANGUAGES CXX)
 
 # Keep src/Plugin.h fallback macros and vcpkg.json version in sync with this project() VERSION.
 # directxtk and rapidcsv are required by CommonLibSSE-NG, not by this plugin's own sources.
@@ -69,3 +69,13 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 target_precompile_headers(${PROJECT_NAME} PRIVATE src/PCH.h)
 target_include_directories(${PROJECT_NAME} PRIVATE src)
 target_link_libraries(${PROJECT_NAME} PRIVATE CommonLibSSE::CommonLibSSE)
+
+if(MSVC)
+  # Crash Logger / Trainwreck resolve our frames from a PDB next to the DLL.
+  target_compile_options(${PROJECT_NAME} PRIVATE "$<$<CONFIG:Release>:/Zi>")
+  target_link_options(${PROJECT_NAME} PRIVATE
+    "$<$<CONFIG:Release>:/DEBUG:FULL>"
+    "$<$<CONFIG:Release>:/OPT:REF>"
+    "$<$<CONFIG:Release>:/OPT:ICF>"
+  )
+endif()

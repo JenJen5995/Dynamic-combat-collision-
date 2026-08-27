@@ -2,6 +2,7 @@
 #include "Settings.h"
 #include "ScaleMath.h"
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 
@@ -41,18 +42,32 @@ namespace MenuUI
 
 		bool EditScale(const char* a_label, float& a_value)
 		{
-			if (!ImGui::SliderFloat(
-					a_label,
-					&a_value,
-					ScaleMath::kMinScale,
-					ScaleMath::kMaxScale,
-					"%.2f")) {
-				return false;
-			}
+			ImGui::SliderFloat(
+				a_label,
+				&a_value,
+				ScaleMath::kMinScale,
+				ScaleMath::kMaxScale,
+				"%.2f");
 			if (!ImGui::IsItemDeactivatedAfterEdit()) {
 				return false;
 			}
 			a_value = ScaleMath::ClampScale(a_value);
+			Settings::Save();
+			return true;
+		}
+
+		bool EditInt(const char* a_label, std::int32_t& a_value, std::int32_t a_min, std::int32_t a_max, const char* a_format)
+		{
+			ImGui::SliderInt(a_label, &a_value, a_min, a_max, a_format);
+			if (!ImGui::IsItemDeactivatedAfterEdit()) {
+				return false;
+			}
+			if (a_value < a_min) {
+				a_value = a_min;
+			}
+			if (a_value > a_max) {
+				a_value = a_max;
+			}
 			Settings::Save();
 			return true;
 		}
@@ -75,6 +90,17 @@ namespace MenuUI
 				EditBool(L("$DCC_Ally", "Ally fights"), Settings::bAllyCombatCollision);
 				ImGui::TextWrapped("%s", L("$DCC_Ally_Help",
 					"When you are not in combat, followers and allies still get combat collision in their own fights. Their hull size follows their right-hand weapon, not yours. Lock-on only still applies to you, not allies."));
+				{
+					const char* capFmt = Settings::iCombatNpcCap >= 11 ? "All" : "%d";
+					EditInt(
+						L("$DCC_NpcCap", "NPCs with hull"),
+						Settings::iCombatNpcCap,
+						1,
+						11,
+						capFmt);
+				}
+				ImGui::TextWrapped("%s", L("$DCC_NpcCap_Help",
+					"How many NPCs besides you get bigger collision. 1-10 = closest in the fight. 11 = all. You always get a hull. Lock-on only ignores this and uses only the lock target."));
 				EditBool(L("$DCC_ShowBox", "Show box"), Settings::bDebugDraw);
 				ImGui::TextWrapped("%s", L("$DCC_ShowBox_Help",
 					"Green ring is the real collision width. Requires TrueHUD. Turn off after testing."));
@@ -84,6 +110,9 @@ namespace MenuUI
 				EditBool(L("$DCC_AttackTrans", "Attack translation"), Settings::bTranslationHelper);
 				ImGui::TextWrapped("%s", L("$DCC_AttackTrans_Help",
 					"Lets NPC stepping attacks keep moving until the rings touch."));
+				EditBool(L("$DCC_WorldClip", "Doorframes"), Settings::bWorldClipHelper);
+				ImGui::TextWrapped("%s", L("$DCC_WorldClip_Help",
+					"Keeps oversized combat collision from sticking in doors and furniture. On costs a bit more performance."));
 			}
 
 			if (ImGui::CollapsingHeader(L("$DCC_Header_Weapons", "Weapons"), ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -103,12 +132,10 @@ namespace MenuUI
 	void Register()
 	{
 		if (!SKSEMenuFramework::IsInstalled()) {
-			logger::info("SKSE Menu Framework not installed - using MCM only");
 			return;
 		}
 
 		SKSEMenuFramework::SetSection(L("$DCC_ModName", "Dynamic Combat Collision"));
 		SKSEMenuFramework::AddSectionItem(L("$DCC_SMF_Settings", "Settings"), Render);
-		logger::info("Registered SKSE Menu Framework settings page");
 	}
 }

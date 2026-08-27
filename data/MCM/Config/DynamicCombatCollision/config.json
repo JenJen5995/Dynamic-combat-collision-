@@ -44,6 +44,18 @@
                     }
                 },
                 {
+                    "id": "iCombatNpcCap:Collision",
+                    "text": "$DCC_NpcCap",
+                    "type": "slider",
+                    "help": "$DCC_NpcCap_Help",
+                    "valueOptions": {
+                        "min": 1,
+                        "max": 11,
+                        "step": 1,
+                        "sourceType": "ModSettingInt"
+                    }
+                },
+                {
                     "id": "fCombatScale:Collision",
                     "text": "$DCC_Default",
                     "type": "slider",
@@ -79,6 +91,15 @@
                     "text": "$DCC_AttackTrans",
                     "type": "toggle",
                     "help": "$DCC_AttackTrans_Help",
+                    "valueOptions": {
+                        "sourceType": "ModSettingBool"
+                    }
+                },
+                {
+                    "id": "bWorldClipHelper:Collision",
+                    "text": "$DCC_WorldClip",
+                    "type": "toggle",
+                    "help": "$DCC_WorldClip_Help",
                     "valueOptions": {
                         "sourceType": "ModSettingBool"
                     }

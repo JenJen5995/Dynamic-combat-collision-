@@ -66,7 +66,7 @@ $vcpkgJson = Join-Path $Root "vcpkg.json"
 if (Test-Path $vcpkgJson) {
   $vcpkg = Get-Content $vcpkgJson -Raw | ConvertFrom-Json
   if ($vcpkg.version -ne $DccVersion) {
-    Write-Warning "vcpkg.json version $($vcpkg.version) != CMake $DccVersion"
+    throw "vcpkg.json version $($vcpkg.version) != CMake $DccVersion"
   }
 }
 
@@ -137,34 +137,30 @@ function Invoke-DccBuild {
   if (-not (Test-Path $dll)) {
     throw "Build finished but DLL missing: $dll"
   }
+  $pdb = [System.IO.Path]::ChangeExtension($dll, ".pdb")
+  if (-not (Test-Path $pdb)) {
+    throw "Build finished but PDB missing: $pdb"
+  }
 
   return $dll
 }
 
-function Copy-DccPackage {
+function Copy-DccItems {
   param(
-    [string]$DllPath,
-    [string]$PackageDir
+    [string]$PackageDir,
+    [array]$Items,
+    [string]$MissingPrefix
   )
 
   $DataRoot = Join-Path $Root "data"
-  $packageItems = @(
-    @{ Rel = "DynamicCombatCollision.esp" },
-    @{ Rel = "Scripts\DynamicCombatCollisionMCM.pex" },
-    @{ Rel = "MCM\Config\DynamicCombatCollision"; IsDir = $true },
-    @{ Rel = "Interface\Translations"; IsDir = $true },
-    @{ Rel = "SKSE\Plugins\DynamicCombatCollision.dll"; Src = $DllPath }
-  )
-
   if (Test-Path $PackageDir) {
     Remove-Item -Recurse -Force $PackageDir
   }
 
-  foreach ($item in $packageItems) {
+  foreach ($item in $Items) {
     $srcPath = if ($item.Src) { $item.Src } else { Join-Path $DataRoot $item.Rel }
     if (-not (Test-Path $srcPath)) {
-      Write-Warning "Skip dist package (missing): $srcPath"
-      continue
+      throw "$MissingPrefix missing required file: $srcPath"
     }
     $destPath = Join-Path $PackageDir $item.Rel
     New-Item -ItemType Directory -Force -Path (Split-Path $destPath) | Out-Null
@@ -174,6 +170,23 @@ function Copy-DccPackage {
       Copy-Item -Force $srcPath $destPath
     }
   }
+}
+
+function Get-DccPluginItems {
+  param([string]$DllPath)
+  return @(
+    @{ Rel = "SKSE\Plugins\DynamicCombatCollision.dll"; Src = $DllPath },
+    @{ Rel = "SKSE\Plugins\DynamicCombatCollision.pdb"; Src = [System.IO.Path]::ChangeExtension($DllPath, ".pdb") },
+    @{ Rel = "Interface\Translations"; IsDir = $true }
+  )
+}
+
+function Get-DccMcmItems {
+  return @(
+    @{ Rel = "DynamicCombatCollision.esp" },
+    @{ Rel = "Scripts\DynamicCombatCollisionMCM.pex" },
+    @{ Rel = "MCM\Config\DynamicCombatCollision"; IsDir = $true }
+  )
 }
 
 function Pack-DccZip {
@@ -204,31 +217,22 @@ foreach ($name in $selected) {
 
   $packageDir = Join-Path $Root "dist\package-$name"
   $zipPath = Join-Path $Root "dist\$($profile.ZipName)"
-  Copy-DccPackage -DllPath $built[$name] -PackageDir $packageDir
+  Copy-DccItems -PackageDir $packageDir -Items (Get-DccPluginItems -DllPath $built[$name]) -MissingPrefix "Plugin package"
   Pack-DccZip -PackageDir $packageDir -ZipPath $zipPath
 }
 
+$mcmZipName = "DynamicCombatCollision-$DccVersion-mcm.zip"
+$mcmPackageDir = Join-Path $Root "dist\package-mcm"
+$mcmZipPath = Join-Path $Root "dist\$mcmZipName"
+Copy-DccItems -PackageDir $mcmPackageDir -Items (Get-DccMcmItems) -MissingPrefix "MCM package"
+Pack-DccZip -PackageDir $mcmPackageDir -ZipPath $mcmZipPath
+
 if ($built.ContainsKey("flatrim") -and $VortexModPath -and (Test-Path $VortexModPath)) {
-  $flatrimItems = @(
-    @{ Rel = "DynamicCombatCollision.esp" },
-    @{ Rel = "Scripts\DynamicCombatCollisionMCM.pex" },
-    @{ Rel = "MCM\Config\DynamicCombatCollision"; IsDir = $true },
-    @{ Rel = "Interface\Translations"; IsDir = $true },
-    @{ Rel = "SKSE\Plugins\DynamicCombatCollision.dll"; Src = $built["flatrim"] }
-  )
-  $DataRoot = Join-Path $Root "data"
-  foreach ($item in $flatrimItems) {
-    $srcPath = if ($item.Src) { $item.Src } else { Join-Path $DataRoot $item.Rel }
-    if (-not (Test-Path $srcPath)) { continue }
-    $destPath = Join-Path $VortexModPath $item.Rel
-    New-Item -ItemType Directory -Force -Path (Split-Path $destPath) | Out-Null
-    if ($item.IsDir -or (Get-Item $srcPath).PSIsContainer) {
-      Copy-Item -Force -Recurse $srcPath (Split-Path $destPath)
-    } else {
-      Copy-Item -Force $srcPath $destPath
-    }
-  }
-  Write-Host "Synced flatrim mod to Vortex staging: $VortexModPath"
+  $vortexDir = Join-Path $Root "dist\package-vortex-sync"
+  $vortexItems = (Get-DccPluginItems -DllPath $built["flatrim"]) + (Get-DccMcmItems)
+  Copy-DccItems -PackageDir $vortexDir -Items $vortexItems -MissingPrefix "Vortex sync"
+  Copy-Item -Force -Recurse (Join-Path $vortexDir "*") $VortexModPath
+  Write-Host "Synced flatrim plugin + MCM to Vortex staging: $VortexModPath"
 }
 
 Write-Host ""
@@ -239,3 +243,4 @@ if ($built.ContainsKey("flatrim")) {
 if ($built.ContainsKey("vr")) {
   Write-Host "  VR zip:      dist\$($Profiles.vr.ZipName)"
 }
+Write-Host "  MCM zip:     dist\$mcmZipName"

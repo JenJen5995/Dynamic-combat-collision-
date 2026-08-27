@@ -73,6 +73,32 @@ namespace ScaleMath
 		a_y *= a_factor;
 	}
 
+	inline float CombatExtraWorld(float a_slider, float a_humanXY)
+	{
+		if (!IsFinitePositive(a_humanXY) || a_slider <= kVanilla + kEpsilon) {
+			return 0.0f;
+		}
+		const float extra = a_humanXY * (a_slider - kVanilla);
+		if (!std::isfinite(extra) || extra <= 0.0f) {
+			return 0.0f;
+		}
+		return extra;
+	}
+
+	inline float MaxCombatExtraWorld(float a_humanXY)
+	{
+		return CombatExtraWorld(kMaxScale, a_humanXY);
+	}
+
+	inline bool ScaleDeltaAllowed(float a_liveRadius, float a_wantRadius, float a_maxDelta)
+	{
+		if (!IsFinitePositive(a_liveRadius) || !IsFinitePositive(a_wantRadius) ||
+			!IsFinitePositive(a_maxDelta)) {
+			return false;
+		}
+		return std::fabs(a_wantRadius - a_liveRadius) <= a_maxDelta + 1.0f;
+	}
+
 	inline float FightOverrideWantedRadius(
 		float a_liveRadius,
 		float a_baseRadius,
@@ -88,7 +114,8 @@ namespace ScaleMath
 			}
 			return a_humanXY;
 		}
-		const float want = a_humanXY * a_slider;
+		const float base = IsFinitePositive(a_baseRadius) ? a_baseRadius : a_humanXY;
+		const float want = base + CombatExtraWorld(a_slider, a_humanXY);
 		if (!std::isfinite(want) || want <= kEpsilon) {
 			return 0.0f;
 		}
@@ -101,6 +128,22 @@ namespace ScaleMath
 			return 0.0f;
 		}
 		return a_wantRadius / a_liveRadius;
+	}
+
+	// Horizontal capsules: XY extent is radius + half the A-B axis. Apply the XY
+	// factor to that extent, then solve for radius so the spine length stays put.
+	inline float CapsuleRadiusForXYFactor(float a_radiusHk, float a_axisXYHk, float a_factor)
+	{
+		if (!IsFinitePositive(a_radiusHk) || !IsFinitePositive(a_factor)) {
+			return 0.0f;
+		}
+		const float axis = (std::isfinite(a_axisXYHk) && a_axisXYHk > 0.0f) ? a_axisXYHk : 0.0f;
+		const float live = a_radiusHk + axis;
+		const float newR = a_factor * live - axis;
+		if (!std::isfinite(newR) || newR <= kEpsilon) {
+			return 0.0f;
+		}
+		return newR;
 	}
 
 	inline bool RadiusNeedsScale(float a_liveRadius, float a_wantRadius)
@@ -214,7 +257,37 @@ namespace ScaleMath
 		if (FightOverrideWantedRadius(0.0f, 18.0f, 3.50f, humanXY) != 0.0f) {
 			return false;
 		}
+		if (std::fabs(FightOverrideWantedRadius(150.0f, 150.0f, 3.00f, humanXY) - 186.0f) > 0.0001f) {
+			return false;
+		}
+		if (std::fabs(FightOverrideWantedRadius(150.0f, 150.0f, 3.00f, humanXY) - 54.0f) < 1.0f) {
+			return false;
+		}
+		if (!ScaleDeltaAllowed(150.0f, 186.0f, MaxCombatExtraWorld(humanXY))) {
+			return false;
+		}
+		if (ScaleDeltaAllowed(150.0f, 450.0f, MaxCombatExtraWorld(humanXY))) {
+			return false;
+		}
+		if (ScaleDeltaAllowed(150.0f, 54.0f, MaxCombatExtraWorld(humanXY))) {
+			return false;
+		}
 		if (std::fabs(RadiusScaleFactor(22.0f, 63.0f) - (63.0f / 22.0f)) > 0.0001f) {
+			return false;
+		}
+		if (std::fabs(CapsuleRadiusForXYFactor(1.0f, 0.0f, 2.0f) - 2.0f) > 0.0001f) {
+			return false;
+		}
+		if (std::fabs(CapsuleRadiusForXYFactor(8.0f, 40.0f, 84.0f / 48.0f) - 44.0f) > 0.0001f) {
+			return false;
+		}
+		if (std::fabs(CapsuleRadiusForXYFactor(8.0f, 40.0f, 1.0f) - 8.0f) > 0.0001f) {
+			return false;
+		}
+		if (CapsuleRadiusForXYFactor(8.0f, 40.0f, 0.1f) != 0.0f) {
+			return false;
+		}
+		if (std::fabs(CapsuleRadiusForXYFactor(8.0f, 40.0f, 2.0f) - (8.0f * 2.0f)) < 1.0f) {
 			return false;
 		}
 		if (RadiusNeedsScale(63.0f, 63.0f)) {
