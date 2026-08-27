@@ -2114,10 +2114,18 @@ namespace Collision
 			Default,
 			Fist,
 			Dagger,
+			WarAxe,
+			Mace,
 			Sword,
 			Longsword,
 			Warhammer,
-			Battleaxe
+			Battleaxe,
+			Polearm,
+			Quarterstaff,
+			Rapier,
+			Katana,
+			Claw,
+			Whip
 		};
 
 		const char* PresetName(WeaponPreset a_preset)
@@ -2127,6 +2135,10 @@ namespace Collision
 				return "fist";
 			case WeaponPreset::Dagger:
 				return "dagger";
+			case WeaponPreset::WarAxe:
+				return "axe";
+			case WeaponPreset::Mace:
+				return "mace";
 			case WeaponPreset::Sword:
 				return "sword";
 			case WeaponPreset::Longsword:
@@ -2135,6 +2147,18 @@ namespace Collision
 				return "warhammer";
 			case WeaponPreset::Battleaxe:
 				return "battleaxe";
+			case WeaponPreset::Polearm:
+				return "polearm";
+			case WeaponPreset::Quarterstaff:
+				return "quarterstaff";
+			case WeaponPreset::Rapier:
+				return "rapier";
+			case WeaponPreset::Katana:
+				return "katana";
+			case WeaponPreset::Claw:
+				return "claw";
+			case WeaponPreset::Whip:
+				return "whip";
 			default:
 				return "default";
 			}
@@ -2147,6 +2171,10 @@ namespace Collision
 				return Settings::fFist;
 			case WeaponPreset::Dagger:
 				return Settings::fDagger;
+			case WeaponPreset::WarAxe:
+				return Settings::fWarAxe;
+			case WeaponPreset::Mace:
+				return Settings::fMace;
 			case WeaponPreset::Sword:
 				return Settings::fSword;
 			case WeaponPreset::Longsword:
@@ -2155,6 +2183,18 @@ namespace Collision
 				return Settings::fWarhammer;
 			case WeaponPreset::Battleaxe:
 				return Settings::fBattleaxe;
+			case WeaponPreset::Polearm:
+				return Settings::fPolearm;
+			case WeaponPreset::Quarterstaff:
+				return Settings::fQuarterstaff;
+			case WeaponPreset::Rapier:
+				return Settings::fRapier;
+			case WeaponPreset::Katana:
+				return Settings::fKatana;
+			case WeaponPreset::Claw:
+				return Settings::fClaw;
+			case WeaponPreset::Whip:
+				return Settings::fWhip;
 			default:
 				return Settings::fCombatScale;
 			}
@@ -2169,6 +2209,16 @@ namespace Collision
 			return keyword && a_weap->HasKeyword(keyword);
 		}
 
+		bool HasAnyWeapKeyword(RE::TESObjectWEAP* a_weap, std::initializer_list<const char*> a_ids)
+		{
+			for (const char* id : a_ids) {
+				if (HasWeapKeyword(a_weap, id)) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 		WeaponPreset ClassifyWeapon(RE::TESForm* a_form)
 		{
 			if (!a_form) {
@@ -2179,9 +2229,37 @@ namespace Collision
 			if (!weap) {
 				return WeaponPreset::Default;
 			}
+			if (weap->IsHandToHandMelee()) {
+				return WeaponPreset::Fist;
+			}
+
+			if (HasAnyWeapKeyword(weap, { "WeapTypeClaw", "WeapTypeCestus" })) {
+				return WeaponPreset::Claw;
+			}
+			if (HasWeapKeyword(weap, "WeapTypeRapier")) {
+				return WeaponPreset::Rapier;
+			}
+			if (HasAnyWeapKeyword(weap, { "WeapTypeKatana", "WeapTypeGreatKatana" })) {
+				return WeaponPreset::Katana;
+			}
+			if (HasWeapKeyword(weap, "WeapTypeWhip")) {
+				return WeaponPreset::Whip;
+			}
+			if (HasAnyWeapKeyword(weap, { "WeapTypeSpear", "WeapTypePike", "WeapTypeHalberd" })) {
+				return WeaponPreset::Polearm;
+			}
+			if (HasAnyWeapKeyword(weap, { "WeapTypeQuarterstaff", "WeapTypeQtrStaff" })) {
+				return WeaponPreset::Quarterstaff;
+			}
 
 			if (HasWeapKeyword(weap, "WeapTypeDagger") || weap->IsOneHandedDagger()) {
 				return WeaponPreset::Dagger;
+			}
+			if (HasWeapKeyword(weap, "WeapTypeWarAxe") || weap->IsOneHandedAxe()) {
+				return WeaponPreset::WarAxe;
+			}
+			if (HasWeapKeyword(weap, "WeapTypeMace") || weap->IsOneHandedMace()) {
+				return WeaponPreset::Mace;
 			}
 			if (HasWeapKeyword(weap, "WeapTypeWarhammer")) {
 				return WeaponPreset::Warhammer;
@@ -2222,6 +2300,10 @@ namespace Collision
 						return ScaleForPlayerWeapon(ally.get());
 					}
 				}
+			}
+
+			if (Settings::bNpcOwnWeapon) {
+				return ScaleForPlayerWeapon(a_actor);
 			}
 
 			return a_combatScale;

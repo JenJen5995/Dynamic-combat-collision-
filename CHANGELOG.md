@@ -1,11 +1,13 @@
 # Changelog
 
-## 1.4.3
+## 1.4.3 - finalized stability and performance
 
-- Less hitching in big fights: Don't get pushed and Attack translation no longer lock Havok every frame to measure hulls.
-- Combat collision is not reapplied every tick once it is already at the right size (weapon swap, slide, and hull rebuilds still update).
-- Player hull log lines are written only when something actually changes, not every frame.
-- Turning off Ally fights keeps anyone not hostile to you at vanilla collision, even in the same fight. Followers get a hull again when the option is on.
+- Less hitching in big fights.
+- With **Ally fights** off, anyone who is not hostile to you stays at vanilla collision, even in the same fight. Turn it on if you want followers in the mix.
+- Unarmed weapons (Vokrii and similar) use the Fist slider, same as empty hands.
+- One-handed axes and maces have their own sliders. They no longer use Default.
+- New option **NPC scale on their own weapon** (off by default). On, each NPC uses their own weapon size. Off, enemies still copy yours.
+- Animated Armoury weapons have their own sliders: Polearm, Quarterstaff, Rapier, Katana, Claw, Whip. A spear that is only a two-handed sword in the plugin still uses Longsword.
 
 ## 1.4.2
 

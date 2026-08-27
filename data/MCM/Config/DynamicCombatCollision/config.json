@@ -44,6 +44,15 @@
                     }
                 },
                 {
+                    "id": "bNpcOwnWeapon:Collision",
+                    "text": "$DCC_NpcOwnWeapon",
+                    "type": "toggle",
+                    "help": "$DCC_NpcOwnWeapon_Help",
+                    "valueOptions": {
+                        "sourceType": "ModSettingBool"
+                    }
+                },
+                {
                     "id": "iCombatNpcCap:Collision",
                     "text": "$DCC_NpcCap",
                     "type": "slider",
@@ -135,6 +144,32 @@
                     }
                 },
                 {
+                    "id": "fWarAxe:Collision",
+                    "text": "$DCC_Axe",
+                    "type": "slider",
+                    "help": "$DCC_Axe_Help",
+                    "valueOptions": {
+                        "min": 1.10,
+                        "max": 5.00,
+                        "step": 0.10,
+                        "formatString": "{2}",
+                        "sourceType": "ModSettingFloat"
+                    }
+                },
+                {
+                    "id": "fMace:Collision",
+                    "text": "$DCC_Mace",
+                    "type": "slider",
+                    "help": "$DCC_Mace_Help",
+                    "valueOptions": {
+                        "min": 1.10,
+                        "max": 5.00,
+                        "step": 0.10,
+                        "formatString": "{2}",
+                        "sourceType": "ModSettingFloat"
+                    }
+                },
+                {
                     "id": "fSword:Collision",
                     "text": "$DCC_Sword",
                     "type": "slider",
@@ -178,6 +213,92 @@
                     "text": "$DCC_Battleaxe",
                     "type": "slider",
                     "help": "$DCC_Battleaxe_Help",
+                    "valueOptions": {
+                        "min": 1.10,
+                        "max": 5.00,
+                        "step": 0.10,
+                        "formatString": "{2}",
+                        "sourceType": "ModSettingFloat"
+                    }
+                },
+                {
+                    "text": "$DCC_Header_AA",
+                    "type": "header"
+                },
+                {
+                    "text": "$DCC_Header_AA_Help",
+                    "type": "text"
+                },
+                {
+                    "id": "fPolearm:Collision",
+                    "text": "$DCC_Polearm",
+                    "type": "slider",
+                    "help": "$DCC_Polearm_Help",
+                    "valueOptions": {
+                        "min": 1.10,
+                        "max": 5.00,
+                        "step": 0.10,
+                        "formatString": "{2}",
+                        "sourceType": "ModSettingFloat"
+                    }
+                },
+                {
+                    "id": "fQuarterstaff:Collision",
+                    "text": "$DCC_Quarterstaff",
+                    "type": "slider",
+                    "help": "$DCC_Quarterstaff_Help",
+                    "valueOptions": {
+                        "min": 1.10,
+                        "max": 5.00,
+                        "step": 0.10,
+                        "formatString": "{2}",
+                        "sourceType": "ModSettingFloat"
+                    }
+                },
+                {
+                    "id": "fRapier:Collision",
+                    "text": "$DCC_Rapier",
+                    "type": "slider",
+                    "help": "$DCC_Rapier_Help",
+                    "valueOptions": {
+                        "min": 1.10,
+                        "max": 5.00,
+                        "step": 0.10,
+                        "formatString": "{2}",
+                        "sourceType": "ModSettingFloat"
+                    }
+                },
+                {
+                    "id": "fKatana:Collision",
+                    "text": "$DCC_Katana",
+                    "type": "slider",
+                    "help": "$DCC_Katana_Help",
+                    "valueOptions": {
+                        "min": 1.10,
+                        "max": 5.00,
+                        "step": 0.10,
+                        "formatString": "{2}",
+                        "sourceType": "ModSettingFloat"
+                    }
+                },
+                {
+                    "id": "fClaw:Collision",
+                    "text": "$DCC_Claw",
+                    "type": "slider",
+                    "help": "$DCC_Claw_Help",
+                    "valueOptions": {
+                        "min": 1.10,
+                        "max": 5.00,
+                        "step": 0.10,
+                        "formatString": "{2}",
+                        "sourceType": "ModSettingFloat"
+                    }
+                },
+                {
+                    "id": "fWhip:Collision",
+                    "text": "$DCC_Whip",
+                    "type": "slider",
+                    "help": "$DCC_Whip_Help",
                     "valueOptions": {
                         "min": 1.10,
                         "max": 5.00,

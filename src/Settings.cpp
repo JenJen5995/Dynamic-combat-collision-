@@ -39,10 +39,18 @@ namespace Settings
 			fCombatScale = ScaleMath::ClampScale(fCombatScale);
 			fFist = ScaleMath::ClampScale(fFist);
 			fDagger = ScaleMath::ClampScale(fDagger);
+			fWarAxe = ScaleMath::ClampScale(fWarAxe);
+			fMace = ScaleMath::ClampScale(fMace);
 			fSword = ScaleMath::ClampScale(fSword);
 			fLongsword = ScaleMath::ClampScale(fLongsword);
 			fWarhammer = ScaleMath::ClampScale(fWarhammer);
 			fBattleaxe = ScaleMath::ClampScale(fBattleaxe);
+			fPolearm = ScaleMath::ClampScale(fPolearm);
+			fQuarterstaff = ScaleMath::ClampScale(fQuarterstaff);
+			fRapier = ScaleMath::ClampScale(fRapier);
+			fKatana = ScaleMath::ClampScale(fKatana);
+			fClaw = ScaleMath::ClampScale(fClaw);
+			fWhip = ScaleMath::ClampScale(fWhip);
 		}
 
 		void ReadIni(const std::filesystem::path& a_path)
@@ -62,14 +70,23 @@ namespace Settings
 				bTranslationHelper = ini.GetBoolValue("Collision", "bTranslationHelper", bTranslationHelper);
 				bWorldClipHelper = ini.GetBoolValue("Collision", "bWorldClipHelper", bWorldClipHelper);
 				bAllyCombatCollision = ini.GetBoolValue("Collision", "bAllyCombatCollision", bAllyCombatCollision);
+				bNpcOwnWeapon = ini.GetBoolValue("Collision", "bNpcOwnWeapon", bNpcOwnWeapon);
 				iCombatNpcCap = ini.GetLongValue("Collision", "iCombatNpcCap", iCombatNpcCap);
 				fCombatScale = static_cast<float>(ini.GetDoubleValue("Collision", "fCombatScale", fCombatScale));
 				fFist = static_cast<float>(ini.GetDoubleValue("Collision", "fFist", fFist));
 				fDagger = static_cast<float>(ini.GetDoubleValue("Collision", "fDagger", fDagger));
+				fWarAxe = static_cast<float>(ini.GetDoubleValue("Collision", "fWarAxe", fWarAxe));
+				fMace = static_cast<float>(ini.GetDoubleValue("Collision", "fMace", fMace));
 				fSword = static_cast<float>(ini.GetDoubleValue("Collision", "fSword", fSword));
 				fLongsword = static_cast<float>(ini.GetDoubleValue("Collision", "fLongsword", fLongsword));
 				fWarhammer = static_cast<float>(ini.GetDoubleValue("Collision", "fWarhammer", fWarhammer));
 				fBattleaxe = static_cast<float>(ini.GetDoubleValue("Collision", "fBattleaxe", fBattleaxe));
+				fPolearm = static_cast<float>(ini.GetDoubleValue("Collision", "fPolearm", fPolearm));
+				fQuarterstaff = static_cast<float>(ini.GetDoubleValue("Collision", "fQuarterstaff", fQuarterstaff));
+				fRapier = static_cast<float>(ini.GetDoubleValue("Collision", "fRapier", fRapier));
+				fKatana = static_cast<float>(ini.GetDoubleValue("Collision", "fKatana", fKatana));
+				fClaw = static_cast<float>(ini.GetDoubleValue("Collision", "fClaw", fClaw));
+				fWhip = static_cast<float>(ini.GetDoubleValue("Collision", "fWhip", fWhip));
 			}
 		}
 
@@ -106,10 +123,11 @@ namespace Settings
 
 		logger::info("settings file {}", UserIniPath().string());
 		logger::info(
-			"Dynamic Combat Collision: enabled={} lockTargetOnly={} allyCombat={} combatNpcCap={} debugDraw={} playerImmovable={} translationHelper={} worldClip={} default={:.2f} fist={:.2f} dagger={:.2f} sword={:.2f} longsword={:.2f} warhammer={:.2f} battleaxe={:.2f}",
+			"Dynamic Combat Collision: enabled={} lockTargetOnly={} allyCombat={} npcOwnWeapon={} combatNpcCap={} debugDraw={} playerImmovable={} translationHelper={} worldClip={} default={:.2f} fist={:.2f} dagger={:.2f} waraxe={:.2f} mace={:.2f} sword={:.2f} longsword={:.2f} warhammer={:.2f} battleaxe={:.2f} polearm={:.2f} quarterstaff={:.2f} rapier={:.2f} katana={:.2f} claw={:.2f} whip={:.2f}",
 			bEnabled,
 			bLockTargetOnly,
 			bAllyCombatCollision,
+			bNpcOwnWeapon,
 			iCombatNpcCap,
 			bDebugDraw,
 			bPlayerImmovable,
@@ -118,10 +136,18 @@ namespace Settings
 			fCombatScale,
 			fFist,
 			fDagger,
+			fWarAxe,
+			fMace,
 			fSword,
 			fLongsword,
 			fWarhammer,
-			fBattleaxe);
+			fBattleaxe,
+			fPolearm,
+			fQuarterstaff,
+			fRapier,
+			fKatana,
+			fClaw,
+			fWhip);
 	}
 
 	void Save()
@@ -141,14 +167,23 @@ namespace Settings
 		ini.SetBoolValue("Collision", "bTranslationHelper", bTranslationHelper);
 		ini.SetBoolValue("Collision", "bWorldClipHelper", bWorldClipHelper);
 		ini.SetBoolValue("Collision", "bAllyCombatCollision", bAllyCombatCollision);
+		ini.SetBoolValue("Collision", "bNpcOwnWeapon", bNpcOwnWeapon);
 		ini.SetLongValue("Collision", "iCombatNpcCap", iCombatNpcCap);
 		ini.SetDoubleValue("Collision", "fCombatScale", fCombatScale);
 		ini.SetDoubleValue("Collision", "fFist", fFist);
 		ini.SetDoubleValue("Collision", "fDagger", fDagger);
+		ini.SetDoubleValue("Collision", "fWarAxe", fWarAxe);
+		ini.SetDoubleValue("Collision", "fMace", fMace);
 		ini.SetDoubleValue("Collision", "fSword", fSword);
 		ini.SetDoubleValue("Collision", "fLongsword", fLongsword);
 		ini.SetDoubleValue("Collision", "fWarhammer", fWarhammer);
 		ini.SetDoubleValue("Collision", "fBattleaxe", fBattleaxe);
+		ini.SetDoubleValue("Collision", "fPolearm", fPolearm);
+		ini.SetDoubleValue("Collision", "fQuarterstaff", fQuarterstaff);
+		ini.SetDoubleValue("Collision", "fRapier", fRapier);
+		ini.SetDoubleValue("Collision", "fKatana", fKatana);
+		ini.SetDoubleValue("Collision", "fClaw", fClaw);
+		ini.SetDoubleValue("Collision", "fWhip", fWhip);
 
 		const auto wide = path.wstring();
 		if (ini.SaveFile(wide.c_str()) < 0) {

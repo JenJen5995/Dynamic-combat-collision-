@@ -90,6 +90,9 @@ namespace MenuUI
 				EditBool(L("$DCC_Ally", "Ally fights"), Settings::bAllyCombatCollision);
 				ImGui::TextWrapped("%s", L("$DCC_Ally_Help",
 					"Followers and teammates get combat collision too. Off, anyone who is not hostile to you stays vanilla, even in the same fight. Their hull size follows their right-hand weapon, not yours. Lock-on only still applies to you, not allies."));
+				EditBool(L("$DCC_NpcOwnWeapon", "NPC scale on their own weapon"), Settings::bNpcOwnWeapon);
+				ImGui::TextWrapped("%s", L("$DCC_NpcOwnWeapon_Help",
+					"When on, each NPC uses their right-hand weapon slider. When off, enemies copy your right-hand size. You always use your own weapon."));
 				{
 					const char* capFmt = Settings::iCombatNpcCap >= 11 ? "All" : "%d";
 					EditInt(
@@ -118,13 +121,26 @@ namespace MenuUI
 			if (ImGui::CollapsingHeader(L("$DCC_Header_Weapons", "Weapons"), ImGuiTreeNodeFlags_DefaultOpen)) {
 				EditScale(L("$DCC_Default", "Default"), Settings::fCombatScale);
 				ImGui::TextWrapped("%s", L("$DCC_Default_Help",
-					"Bows, one-handed axes/maces, magic, and any type without its own slider. Enemies copy your right-hand size. Anyone who is not an enemy stays at 1.50."));
+					"Bows, magic staves, and any type without its own slider. Enemies copy your right-hand size unless NPC scale on their own weapon is on. Anyone who is not an enemy stays at 1.50."));
 				EditScale(L("$DCC_Fist", "Fist"), Settings::fFist);
 				EditScale(L("$DCC_Dagger", "Dagger"), Settings::fDagger);
+				EditScale(L("$DCC_Axe", "Axe"), Settings::fWarAxe);
+				EditScale(L("$DCC_Mace", "Mace"), Settings::fMace);
 				EditScale(L("$DCC_Sword", "Sword"), Settings::fSword);
 				EditScale(L("$DCC_Longsword", "Longsword"), Settings::fLongsword);
 				EditScale(L("$DCC_Warhammer", "Warhammer"), Settings::fWarhammer);
 				EditScale(L("$DCC_Battleaxe", "Battleaxe"), Settings::fBattleaxe);
+			}
+
+			if (ImGui::CollapsingHeader(L("$DCC_Header_AA", "Animated Armoury"), ImGuiTreeNodeFlags_DefaultOpen)) {
+				ImGui::TextWrapped("%s", L("$DCC_Header_AA_Help",
+					"Used when the weapon has Animated Armoury / New Armoury keywords. A spear that is only a two-handed sword in the plugin still uses Longsword."));
+				EditScale(L("$DCC_Polearm", "Polearm"), Settings::fPolearm);
+				EditScale(L("$DCC_Quarterstaff", "Quarterstaff"), Settings::fQuarterstaff);
+				EditScale(L("$DCC_Rapier", "Rapier"), Settings::fRapier);
+				EditScale(L("$DCC_Katana", "Katana"), Settings::fKatana);
+				EditScale(L("$DCC_Claw", "Claw"), Settings::fClaw);
+				EditScale(L("$DCC_Whip", "Whip"), Settings::fWhip);
 			}
 		}
 	}

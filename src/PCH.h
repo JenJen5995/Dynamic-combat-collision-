@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <initializer_list>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
