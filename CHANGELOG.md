@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.3
+
+- Less hitching in big fights: Don't get pushed and Attack translation no longer lock Havok every frame to measure hulls.
+- Combat collision is not reapplied every tick once it is already at the right size (weapon swap, slide, and hull rebuilds still update).
+- Player hull log lines are written only when something actually changes, not every frame.
+- Turning off Ally fights keeps anyone not hostile to you at vanilla collision, even in the same fight. Followers get a hull again when the option is on.
+
 ## 1.4.2
 
 - Fixed freezes from the plugin locking Havok twice during combat.

@@ -89,7 +89,7 @@ namespace MenuUI
 					"Requires True Directional Movement. While locked, only you and the lock target get bigger collision. Unlock restores both even if combat continues."));
 				EditBool(L("$DCC_Ally", "Ally fights"), Settings::bAllyCombatCollision);
 				ImGui::TextWrapped("%s", L("$DCC_Ally_Help",
-					"When you are not in combat, followers and allies still get combat collision in their own fights. Their hull size follows their right-hand weapon, not yours. Lock-on only still applies to you, not allies."));
+					"Followers and teammates get combat collision too. Off, anyone who is not hostile to you stays vanilla, even in the same fight. Their hull size follows their right-hand weapon, not yours. Lock-on only still applies to you, not allies."));
 				{
 					const char* capFmt = Settings::iCombatNpcCap >= 11 ? "All" : "%d";
 					EditInt(
