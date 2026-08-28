@@ -21,7 +21,7 @@ namespace Hooks
 	{
 		REL::Relocation<std::uintptr_t> vtbl{ RE::VTABLE_PlayerCharacter[0] };
 		_PlayerUpdate = vtbl.write_vfunc(0xAD, PlayerUpdate);
-		logger::debug("Installed PlayerCharacter::Update hook");
+		logger::debug("PlayerCharacter::Update hooked");
 		Collision::InstallProxyHooks();
 	}
 }

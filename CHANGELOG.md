@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.4.3 - finalized stability and performance
+## 1.4.3
 
 - Less hitching in big fights.
 - With **Ally fights** off, anyone who is not hostile to you stays at vanilla collision, even in the same fight. Turn it on if you want followers in the mix.

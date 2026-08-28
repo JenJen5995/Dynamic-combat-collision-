@@ -2228,24 +2228,6 @@ namespace Collision
 		};
 		bool g_weaponKeywordsReady = false;
 
-		bool WeaponKeywordIdsUnique()
-		{
-			const auto n = std::size(g_weaponKeywords);
-			for (std::size_t i = 0; i < n; ++i) {
-				const auto* left = g_weaponKeywords[i].editorID;
-				if (!left || left[0] == '\0') {
-					return false;
-				}
-				const std::string_view leftView{ left };
-				for (std::size_t j = i + 1; j < n; ++j) {
-					if (leftView == g_weaponKeywords[j].editorID) {
-						return false;
-					}
-				}
-			}
-			return true;
-		}
-
 		void InitWeaponKeywordsInternal()
 		{
 			if (g_weaponKeywordsReady) {
@@ -2283,23 +2265,6 @@ namespace Collision
 			}
 			auto* keyword = CachedWeapKeyword(a_editorID);
 			return keyword && a_weap->HasKeyword(keyword);
-		}
-
-		bool RunWeaponKeywordSelfTest()
-		{
-			if (!WeaponKeywordIdsUnique()) {
-				return false;
-			}
-			if (HasWeapKeyword(nullptr, "WeapTypeSword")) {
-				return false;
-			}
-			if (HasWeapKeyword(nullptr, nullptr)) {
-				return false;
-			}
-			if (CachedWeapKeyword("WeapTypeNotARealKeyword")) {
-				return false;
-			}
-			return true;
 		}
 
 		bool HasAnyWeapKeyword(RE::TESObjectWEAP* a_weap, std::initializer_list<const char*> a_ids)
@@ -4083,7 +4048,7 @@ namespace Collision
 			if (empty < 0) {
 				static std::once_flag s_full;
 				std::call_once(s_full, [] {
-					logger::warn("hull cache full ({} slots); extra proxies skip fatten", kMaxActors);
+					logger::warn("hull cache full ({})", kMaxActors);
 				});
 				return nullptr;
 			}
@@ -4766,11 +4731,6 @@ namespace Collision
 		}
 	}
 
-	bool WeaponKeywordTableSelfTest()
-	{
-		return RunWeaponKeywordSelfTest();
-	}
-
 	void InitWeaponKeywords()
 	{
 		InitWeaponKeywordsInternal();
@@ -4779,7 +4739,7 @@ namespace Collision
 	void Reset()
 	{
 		if (!g_tracked.empty()) {
-			logger::info("collision reset drop {} tracked actor(s) (no havok restore)", g_tracked.size());
+			logger::info("collision reset {}", g_tracked.size());
 		}
 		ClearFatNpcBodies();
 		ClearThunkCaches();

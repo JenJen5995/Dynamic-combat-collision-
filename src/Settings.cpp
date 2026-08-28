@@ -121,33 +121,7 @@ namespace Settings
 		ClampAll();
 		RefreshUserIniTimestamp();
 
-		logger::info("settings file {}", UserIniPath().string());
-		logger::info(
-			"Dynamic Combat Collision: enabled={} lockTargetOnly={} allyCombat={} npcOwnWeapon={} combatNpcCap={} debugDraw={} playerImmovable={} translationHelper={} worldClip={} default={:.2f} fist={:.2f} dagger={:.2f} waraxe={:.2f} mace={:.2f} sword={:.2f} longsword={:.2f} warhammer={:.2f} battleaxe={:.2f} polearm={:.2f} quarterstaff={:.2f} rapier={:.2f} katana={:.2f} claw={:.2f} whip={:.2f}",
-			bEnabled,
-			bLockTargetOnly,
-			bAllyCombatCollision,
-			bNpcOwnWeapon,
-			iCombatNpcCap,
-			bDebugDraw,
-			bPlayerImmovable,
-			bTranslationHelper,
-			bWorldClipHelper,
-			fCombatScale,
-			fFist,
-			fDagger,
-			fWarAxe,
-			fMace,
-			fSword,
-			fLongsword,
-			fWarhammer,
-			fBattleaxe,
-			fPolearm,
-			fQuarterstaff,
-			fRapier,
-			fKatana,
-			fClaw,
-			fWhip);
+		logger::info("settings {}", UserIniPath().string());
 	}
 
 	void Save()
@@ -217,7 +191,7 @@ namespace Settings
 			std::fabs(prevDefault - fCombatScale) > 0.001f ||
 			std::fabs(prevSword - fSword) > 0.001f) {
 			logger::info(
-				"settings reloaded from disk: enabled={} debugDraw={} default={:.2f} sword={:.2f}",
+				"settings reloaded enabled={} debugDraw={} default={:.2f} sword={:.2f}",
 				bEnabled,
 				bDebugDraw,
 				fCombatScale,

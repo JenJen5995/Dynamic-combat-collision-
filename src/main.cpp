@@ -1,7 +1,5 @@
 ﻿#include "Collision.h"
 #include "Hooks.h"
-#include "ScaleMath.h"
-#include "WallClip.h"
 #include "Settings.h"
 #include "TDM_API.h"
 #include "TrueHUD_API.h"
@@ -18,14 +16,14 @@ namespace
 		switch (a_msg->type) {
 		case SKSE::MessagingInterface::kPostLoad:
 			if (TDM_API::Resolve()) {
-				logger::debug("True Directional Movement API ready");
+				logger::debug("TDM ready");
 			} else {
-				logger::warn("True Directional Movement API not found - lock-on only will do nothing");
+				logger::warn("TDM not found");
 			}
 			TRUEHUD::Resolve();
 			if (GetModuleHandleA("VariadicCollisionDynamics.dll")) {
 				Collision::SetVcdFightOverride(true);
-				logger::info("Variadic Collision Dynamics detected");
+				logger::info("VCD detected");
 			} else {
 				Collision::SetVcdFightOverride(false);
 			}
@@ -138,21 +136,6 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 		Plugin::VERSION[1],
 		Plugin::VERSION[2],
 		REL::Module::get().version().string());
-
-	if (!WallClip::RunSelfTest()) {
-		logger::error("WallClip self-test failed");
-		return false;
-	}
-
-	if (!ScaleMath::SelfTest()) {
-		logger::error("ScaleMath self-test failed");
-		return false;
-	}
-
-	if (!Collision::WeaponKeywordTableSelfTest()) {
-		logger::error("weapon keyword cache self-test failed");
-		return false;
-	}
 
 	SKSE::Init(a_skse);
 

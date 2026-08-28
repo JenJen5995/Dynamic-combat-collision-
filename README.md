@@ -1,7 +1,7 @@
 # Dynamic Combat Collision
 
-SKSE plugin for SE, AE, and VR. Bigger collision during fights so people actually
-bump into each other. Walls can still stop you at vanilla distance.
+SKSE plugin for SE, AE, and VR. Bigger collision in fights. Walls still stop you
+at vanilla distance.
 
 Settings are optional. Author: typiak
 
@@ -24,8 +24,7 @@ Nexus / dist zips:
 - `DynamicCombatCollision-<ver>-mcm.zip` — optional ESP and MCM (SE/AE and VR)
 
 Other languages: copy `Interface/Translations/DynamicCombatCollision_ENGLISH.txt` to
-`DynamicCombatCollision_<LANGUAGE>.txt` (FRENCH, GERMAN, …). That one file feeds SKSE Menu
-Framework and MCM Helper.
+`DynamicCombatCollision_<LANGUAGE>.txt` (FRENCH, GERMAN, …).
 
 ## Build
 
