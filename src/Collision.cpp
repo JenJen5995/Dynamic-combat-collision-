@@ -2200,13 +2200,106 @@ namespace Collision
 			}
 		}
 
+		struct WeaponKeywordSlot
+		{
+			const char* editorID;
+			RE::BGSKeyword* keyword;
+		};
+
+		WeaponKeywordSlot g_weaponKeywords[] = {
+			{ "WeapTypeClaw", nullptr },
+			{ "WeapTypeCestus", nullptr },
+			{ "WeapTypeRapier", nullptr },
+			{ "WeapTypeKatana", nullptr },
+			{ "WeapTypeGreatKatana", nullptr },
+			{ "WeapTypeWhip", nullptr },
+			{ "WeapTypeSpear", nullptr },
+			{ "WeapTypePike", nullptr },
+			{ "WeapTypeHalberd", nullptr },
+			{ "WeapTypeQuarterstaff", nullptr },
+			{ "WeapTypeQtrStaff", nullptr },
+			{ "WeapTypeDagger", nullptr },
+			{ "WeapTypeWarAxe", nullptr },
+			{ "WeapTypeMace", nullptr },
+			{ "WeapTypeWarhammer", nullptr },
+			{ "WeapTypeBattleaxe", nullptr },
+			{ "WeapTypeGreatsword", nullptr },
+			{ "WeapTypeSword", nullptr }
+		};
+		bool g_weaponKeywordsReady = false;
+
+		bool WeaponKeywordIdsUnique()
+		{
+			const auto n = std::size(g_weaponKeywords);
+			for (std::size_t i = 0; i < n; ++i) {
+				const auto* left = g_weaponKeywords[i].editorID;
+				if (!left || left[0] == '\0') {
+					return false;
+				}
+				const std::string_view leftView{ left };
+				for (std::size_t j = i + 1; j < n; ++j) {
+					if (leftView == g_weaponKeywords[j].editorID) {
+						return false;
+					}
+				}
+			}
+			return true;
+		}
+
+		void InitWeaponKeywordsInternal()
+		{
+			if (g_weaponKeywordsReady) {
+				return;
+			}
+			std::uint32_t found = 0;
+			for (auto& slot : g_weaponKeywords) {
+				slot.keyword = RE::TESForm::LookupByEditorID<RE::BGSKeyword>(slot.editorID);
+				if (slot.keyword) {
+					++found;
+				}
+			}
+			g_weaponKeywordsReady = true;
+			logger::info("weapon keywords cached {}/{}", found, std::size(g_weaponKeywords));
+		}
+
+		RE::BGSKeyword* CachedWeapKeyword(const char* a_editorID)
+		{
+			if (!a_editorID) {
+				return nullptr;
+			}
+			const std::string_view want{ a_editorID };
+			for (auto& slot : g_weaponKeywords) {
+				if (want == slot.editorID) {
+					return slot.keyword;
+				}
+			}
+			return nullptr;
+		}
+
 		bool HasWeapKeyword(RE::TESObjectWEAP* a_weap, const char* a_editorID)
 		{
 			if (!a_weap || !a_editorID) {
 				return false;
 			}
-			auto* keyword = RE::TESForm::LookupByEditorID<RE::BGSKeyword>(a_editorID);
+			auto* keyword = CachedWeapKeyword(a_editorID);
 			return keyword && a_weap->HasKeyword(keyword);
+		}
+
+		bool RunWeaponKeywordSelfTest()
+		{
+			if (!WeaponKeywordIdsUnique()) {
+				return false;
+			}
+			if (HasWeapKeyword(nullptr, "WeapTypeSword")) {
+				return false;
+			}
+			if (HasWeapKeyword(nullptr, nullptr)) {
+				return false;
+			}
+			if (CachedWeapKeyword("WeapTypeNotARealKeyword")) {
+				return false;
+			}
+			return true;
 		}
 
 		bool HasAnyWeapKeyword(RE::TESObjectWEAP* a_weap, std::initializer_list<const char*> a_ids)
@@ -3534,9 +3627,6 @@ namespace Collision
 				return;
 			}
 
-			// Prefer the hull scaled on this physics call. NPC g_tracked.applied often stays
-			// vanilla after the thunk already grew the convex, which used to skip this filter
-			// and leave fat NPC hulls stuck on doorframes. Player tracking stays in sync.
 			float applied = g_thunkAppliedThisCall;
 			if (tracked && ScaleMath::NeedsApply(tracked->applied, ScaleMath::kVanilla) &&
 				tracked->applied > applied) {
@@ -4676,12 +4766,18 @@ namespace Collision
 		}
 	}
 
+	bool WeaponKeywordTableSelfTest()
+	{
+		return RunWeaponKeywordSelfTest();
+	}
+
+	void InitWeaponKeywords()
+	{
+		InitWeaponKeywordsInternal();
+	}
+
 	void Reset()
 	{
-		// Pre/post-load: character controllers and rigid bodies are already
-		// destroyed. RestoreForm / RemoveContactListener on those pointers is the
-		// Stony Creek AV (null listener array, rcx=-1). The new world is vanilla;
-		// Update + g_postLoadSanitize reapply combat hulls after load.
 		if (!g_tracked.empty()) {
 			logger::info("collision reset drop {} tracked actor(s) (no havok restore)", g_tracked.size());
 		}
@@ -4728,6 +4824,7 @@ namespace Collision
 	void Update(float a_delta)
 	{
 		Settings::ReloadIfChanged();
+		InitWeaponKeywordsInternal();
 
 		auto* ui = RE::UI::GetSingleton();
 		if (ui && ui->GameIsPaused()) {

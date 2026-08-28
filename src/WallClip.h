@@ -25,8 +25,6 @@ namespace WallClip
 		return a_alongHk - a_vanillaHk - a_keepDistance;
 	}
 
-	// |nz|/|n| at or above this is a floor, ramp, or stair tread, not a doorframe.
-	// 0.50 = 60 degrees from vertical (typical walkable max slope).
 	inline constexpr float kWalkableNormalZ = 0.50f;
 
 	inline bool IsWalkableSupportNormal(float a_nx, float a_ny, float a_nz)
@@ -41,13 +39,9 @@ namespace WallClip
 		return std::fabs(a_nz) >= kWalkableNormalZ * std::sqrt(n2);
 	}
 
-	// Positive plane.w => simplex constraint already satisfied, no push this frame.
 	inline constexpr float kSatisfiedSimplexPlaneW = 1.0f;
-	// Havok units. Below this inward speed, treat the player as not walking into them.
 	inline constexpr float kPlayerIntoActorSpeedHk = 0.05f;
 
-	// n points toward the player (out of the other actor). Keep the stop if the
-	// player is walking into them. Drop it if they are walking into the player.
 	inline bool KeepPlayerActorConstraint(
 		float a_vx,
 		float a_vy,

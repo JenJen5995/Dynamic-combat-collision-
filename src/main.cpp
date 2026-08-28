@@ -42,6 +42,7 @@ namespace
 		case SKSE::MessagingInterface::kDataLoaded:
 			Settings::Load();
 			Collision::Reset();
+			Collision::InitWeaponKeywords();
 			if (std::filesystem::exists(L"Data/Interface/Translations/DynamicCombatCollision_ENGLISH.txt")) {
 				SKSE::Translation::ParseTranslation("DynamicCombatCollision");
 			}
@@ -145,6 +146,11 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 
 	if (!ScaleMath::SelfTest()) {
 		logger::error("ScaleMath self-test failed");
+		return false;
+	}
+
+	if (!Collision::WeaponKeywordTableSelfTest()) {
+		logger::error("weapon keyword cache self-test failed");
 		return false;
 	}
 

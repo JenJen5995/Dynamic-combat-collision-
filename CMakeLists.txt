@@ -6,9 +6,6 @@ endif()
 
 project(DynamicCombatCollision VERSION 1.4.3 LANGUAGES CXX)
 
-# Keep src/Plugin.h fallback macros and vcpkg.json version in sync with this project() VERSION.
-# directxtk and rapidcsv are required by CommonLibSSE-NG, not by this plugin's own sources.
-
 add_compile_definitions(_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
 
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
@@ -71,7 +68,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE src)
 target_link_libraries(${PROJECT_NAME} PRIVATE CommonLibSSE::CommonLibSSE)
 
 if(MSVC)
-  # Crash Logger / Trainwreck resolve our frames from a PDB next to the DLL.
   target_compile_options(${PROJECT_NAME} PRIVATE "$<$<CONFIG:Release>:/Zi>")
   target_link_options(${PROJECT_NAME} PRIVATE
     "$<$<CONFIG:Release>:/DEBUG:FULL>"

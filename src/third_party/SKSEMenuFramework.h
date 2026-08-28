@@ -1,8 +1,3 @@
-// SKSE Menu Framework 2 client header (MIT, Thiago099).
-// https://github.com/Thiago099/SKSE-Menu-Framework-2-Example
-// This is not leftover ImGui source. Every ImGui:: call is forwarded into
-// SKSEMenuFramework.dll via GetProcAddress. Stock imgui.h cannot replace it.
-// See THIRD_PARTY.md.
 #include <windows.h>
 
 #include <cassert>
@@ -10,8 +5,6 @@
 #include <locale>
 #include <string>
 
-// Resolve on first use (DataLoaded), not at DCC DLL load. GetModuleHandle at
-// static init is null forever if this plugin loads before SKSEMenuFramework.
 inline HMODULE SKSEMenuFramework_GetModule()
 {
     static HMODULE handle = nullptr;
@@ -11127,7 +11120,6 @@ namespace ImGui {
         return func(table, pixels, x, y, w, h, stride);
     }
 
-    /////////////////////////////manual written functions
     inline void LogText(CONST char* fmt, ...) {
         using func_t = void (*)(const char*, va_list);
         func_t func = reinterpret_cast<func_t>(GetProcAddress(menuFramework, "igLogTextV"));

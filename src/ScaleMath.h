@@ -130,8 +130,6 @@ namespace ScaleMath
 		return a_wantRadius / a_liveRadius;
 	}
 
-	// Horizontal capsules: XY extent is radius + half the A-B axis. Apply the XY
-	// factor to that extent, then solve for radius so the spine length stays put.
 	inline float CapsuleRadiusForXYFactor(float a_radiusHk, float a_axisXYHk, float a_factor)
 	{
 		if (!IsFinitePositive(a_radiusHk) || !IsFinitePositive(a_factor)) {
