@@ -78,7 +78,6 @@ namespace Collision
 			std::uint32_t closeFrame{ 0 };
 			float closeLastX{ 0.0f };
 			float closeLastY{ 0.0f };
-			bool needsGrow{ false };
 		};
 
 		std::uint32_t g_hullCloseFrame = 0;
@@ -122,9 +121,6 @@ namespace Collision
 		bool g_kmIgnoreUntilClear = false;
 		std::unordered_map<RE::FormID, std::string> g_hullLogLine;
 		std::string g_lastPlayerHullLine;
-		const char* g_lastPlayerHullWhy{ nullptr };
-		float g_lastPlayerHullApplied{ 0.0f };
-		float g_lastPlayerHullWeapon{ 0.0f };
 		RE::FormID g_nudgeIds[kMaxNudge]{};
 		std::uint32_t g_nudgeCount = 0;
 		constexpr std::uint32_t kPlayerFightHoldFrames = 60;
@@ -145,7 +141,6 @@ namespace Collision
 			RE::hkpConvexVerticesShape*& a_convex);
 		float MeasureConvexXYWorld(RE::hkpConvexVerticesShape* a_convex);
 		float MeasureShapeXYWorld(RE::hkpShape* a_shape, int a_depth);
-		float ActorLiveRadiusHkNoLock(RE::Actor* a_actor, const Tracked* a_tracked);
 		void RestoreForm(RE::FormID a_formID);
 		bool ActorIsGone(RE::Actor* a_actor)
 		{
@@ -2569,7 +2564,6 @@ namespace Collision
 					return false;
 				}
 				a_tracked.applied = a_targetApplied;
-				a_tracked.needsGrow = false;
 				MaybeSnapshotCombatHull(
 					a_tracked, a_list, a_convexLive, a_slider, liveRadius, a_wantRadius);
 				return true;
@@ -2581,7 +2575,6 @@ namespace Collision
 					liveRadius = a_convexLive ? MeasureConvexXYWorld(a_convexLive) : liveRadius;
 					if (!ScaleMath::RadiusNeedsScale(liveRadius, a_wantRadius)) {
 						a_tracked.applied = a_targetApplied;
-						a_tracked.needsGrow = false;
 						return true;
 					}
 				}
@@ -2598,8 +2591,7 @@ namespace Collision
 				return true;
 			}
 
-			const float raw = ScaleMath::RadiusScaleFactor(liveRadius, a_wantRadius);
-			float factor = raw;
+			float factor = ScaleMath::RadiusScaleFactor(liveRadius, a_wantRadius);
 			if (!shrinking && a_actor->IsPlayerRef() && !a_snapGrow && !g_vcdFightOverride) {
 				factor = ScaleMath::ClampGrowFactor(factor, kMaxGrowPerTick);
 			}
@@ -2613,7 +2605,6 @@ namespace Collision
 
 			const float previous = a_tracked.applied;
 			a_tracked.applied = a_targetApplied;
-			a_tracked.needsGrow = ScaleMath::NeedsApply(factor, raw);
 			float liveAfter = liveRadius;
 			if (a_convexLive) {
 				liveAfter = MeasureConvexXYWorld(a_convexLive);
@@ -2700,14 +2691,12 @@ namespace Collision
 					return false;
 				}
 				a_tracked.applied = combatApplied;
-				a_tracked.needsGrow = false;
 				MaybeSnapshotCombatHull(
 					a_tracked, list, convexLive, a_target, liveRadius, wantCombatR);
 				return true;
 			}
 
-			const float raw = ScaleMath::RadiusScaleFactor(liveRadius, wantR);
-			float factor = raw;
+			float factor = ScaleMath::RadiusScaleFactor(liveRadius, wantR);
 			if (wantR > liveRadius && a_actor->IsPlayerRef() && !snapGrowNow && !g_vcdFightOverride) {
 				factor = ScaleMath::ClampGrowFactor(factor, kMaxGrowPerTick);
 			}
@@ -2724,7 +2713,6 @@ namespace Collision
 
 			const float previous = a_tracked.applied;
 			a_tracked.applied = combatApplied;
-			a_tracked.needsGrow = ScaleMath::NeedsApply(factor, raw);
 			MaybeSnapshotCombatHull(
 				a_tracked, list, convexLive, a_target, liveRadius, wantCombatR);
 			if (previous <= ScaleMath::kVanilla + ScaleMath::kEpsilon ||
@@ -2786,47 +2774,6 @@ namespace Collision
 				}
 			}
 			return &g_tracked[formID];
-		}
-
-		bool CanSkipActorScale(RE::Actor* a_actor, float a_target)
-		{
-			if (!a_actor || (g_postLoadSanitize && a_actor->IsPlayerRef())) {
-				return false;
-			}
-			const auto it = g_tracked.find(a_actor->GetFormID());
-			if (it == g_tracked.end()) {
-				return false;
-			}
-			auto& tracked = it->second;
-			if (tracked.needsGrow) {
-				return false;
-			}
-			if (!ScaleMath::IsFinitePositive(tracked.vanillaRadius)) {
-				return false;
-			}
-			if (ScaleMath::NeedsApply(tracked.applied, TargetApplied(tracked, a_target))) {
-				return false;
-			}
-			auto* controller = a_actor->GetCharController();
-			if (!controller || tracked.controller != controller) {
-				return false;
-			}
-			const auto low = DesiredLowHull(a_actor);
-			if (low == LowHull::None) {
-				if (tracked.slideActive) {
-					return false;
-				}
-			} else if (!tracked.slideActive || tracked.poseShrink != low) {
-				return false;
-			}
-			auto* body = CharacterHullObject(controller);
-			if (!body || tracked.shape != body->collidable.shape) {
-				return false;
-			}
-			RE::hkpListShape* list = nullptr;
-			RE::hkpConvexVerticesShape* convex = nullptr;
-			FindConvex(body, list, convex);
-			return tracked.convex == convex;
 		}
 
 		bool SetActorScale(RE::Actor* a_actor, float a_target)
@@ -2902,7 +2849,6 @@ namespace Collision
 				tracked.shape = root;
 				tracked.convex = convex;
 				tracked.applied = ScaleMath::kVanilla;
-				tracked.needsGrow = snapGrow;
 				if (VanillaHullScalable(xyRadius)) {
 					tracked.vanillaRadius = xyRadius;
 					if (g_vcdFightOverride &&
@@ -3253,7 +3199,11 @@ namespace Collision
 
 		float CombatCloseRadiusHk(RE::Actor* a_actor, const Tracked* a_tracked)
 		{
-			return ActorLiveRadiusHkNoLock(a_actor, a_tracked);
+			if (a_tracked && OversizedForCombat(a_tracked->vanillaRadius) &&
+				ScaleMath::IsFinitePositive(a_tracked->vanillaRadius)) {
+				return a_tracked->vanillaRadius * RE::bhkWorld::GetWorldScale();
+			}
+			return LiveHullRadiusHk(a_actor, a_tracked);
 		}
 
 		float ProxyRadiusHk(const RE::hkpCharacterProxy* a_proxy)
@@ -3290,23 +3240,6 @@ namespace Collision
 				if (ScaleMath::IsFinitePositive(world)) {
 					return world * RE::bhkWorld::GetWorldScale();
 				}
-			}
-			return ActorRadiusHk(a_tracked);
-		}
-
-		float ActorLiveRadiusHkNoLock(RE::Actor* a_actor, const Tracked* a_tracked)
-		{
-			if (a_tracked && OversizedForCombat(a_tracked->vanillaRadius) &&
-				ScaleMath::IsFinitePositive(a_tracked->vanillaRadius)) {
-				return a_tracked->vanillaRadius * RE::bhkWorld::GetWorldScale();
-			}
-			if (!a_actor) {
-				return ActorRadiusHk(a_tracked);
-			}
-			auto* proxyCtrl = AsCharProxyController(a_actor->GetCharController());
-			auto* proxy = proxyCtrl ? proxyCtrl->GetCharacterProxy() : nullptr;
-			if (proxy) {
-				return HavokRadiusHk(proxy, a_tracked);
 			}
 			return ActorRadiusHk(a_tracked);
 		}
@@ -4338,7 +4271,7 @@ namespace Collision
 			}
 
 			const float worldScale = RE::bhkWorld::GetWorldScale();
-			const float playerR = ActorLiveRadiusHkNoLock(player, playerTracked);
+			const float playerR = LiveHullRadiusHk(player, playerTracked);
 			const float epsHk = kHullCloseEpsWorld * worldScale;
 			const float baseGapHk = kHullCloseGapWorld * worldScale;
 			RE::hkVector4 playerPos;
@@ -4469,7 +4402,7 @@ namespace Collision
 				a_delta :
 				1.0f / 60.0f;
 			const float worldScale = RE::bhkWorld::GetWorldScale();
-			const float playerR = ActorLiveRadiusHkNoLock(player, playerTracked);
+			const float playerR = LiveHullRadiusHk(player, playerTracked);
 			const float epsHk = kHullCloseEpsWorld * worldScale;
 			const float baseGapHk = kHullCloseGapWorld * worldScale;
 			const float stepHk = kHullCloseSpeedWorld * worldScale * dt;
@@ -4589,7 +4522,7 @@ namespace Collision
 
 			RE::hkVector4 playerPos;
 			playerCtrl->GetPosition(playerPos, false);
-			const float playerR = ActorLiveRadiusHkNoLock(player, playerTracked);
+			const float playerR = LiveHullRadiusHk(player, playerTracked);
 			const auto* lists = RE::ProcessLists::GetSingleton();
 			if (!lists) {
 				return;
@@ -4618,7 +4551,7 @@ namespace Collision
 				if (SkipAnimalCombatMove(actor.get()) || ActorOversizedForShove(actor.get(), npcTracked)) {
 					continue;
 				}
-				const float combined = playerR + ActorLiveRadiusHkNoLock(actor.get(), npcTracked);
+				const float combined = playerR + LiveHullRadiusHk(actor.get(), npcTracked);
 				if (dist >= combined) {
 					continue;
 				}
@@ -4688,18 +4621,6 @@ namespace Collision
 				return;
 			}
 
-			const char* why = PlayerHullWhy(a_player);
-			float applied = ScaleMath::kVanilla;
-			if (const auto it = g_tracked.find(a_player->GetFormID()); it != g_tracked.end()) {
-				applied = it->second.applied;
-			}
-			const float weapon = ScaleForPlayerWeapon(a_player);
-			if (why == g_lastPlayerHullWhy &&
-				!ScaleMath::NeedsApply(applied, g_lastPlayerHullApplied) &&
-				!ScaleMath::NeedsApply(weapon, g_lastPlayerHullWeapon)) {
-				return;
-			}
-
 			float live = 0.0f;
 			const RE::hkpShape* root = nullptr;
 			RE::hkpConvexVerticesShape* convex = nullptr;
@@ -4707,15 +4628,17 @@ namespace Collision
 				PeekLiveShape(a_player, ctrl, root, convex, live);
 			}
 
+			float applied = ScaleMath::kVanilla;
+			if (const auto it = g_tracked.find(a_player->GetFormID()); it != g_tracked.end()) {
+				applied = it->second.applied;
+			}
+
 			const auto line = fmt::format(
 				"player hull {} live={:.1f} applied={:.2f} weapon={:.2f}",
-				why,
+				PlayerHullWhy(a_player),
 				live,
 				applied,
-				weapon);
-			g_lastPlayerHullWhy = why;
-			g_lastPlayerHullApplied = applied;
-			g_lastPlayerHullWeapon = weapon;
+				ScaleForPlayerWeapon(a_player));
 			if (line == g_lastPlayerHullLine) {
 				return;
 			}
@@ -4747,9 +4670,6 @@ namespace Collision
 		g_vcdBase.clear();
 		g_hullLogLine.clear();
 		g_lastPlayerHullLine.clear();
-		g_lastPlayerHullWhy = nullptr;
-		g_lastPlayerHullApplied = 0.0f;
-		g_lastPlayerHullWeapon = 0.0f;
 		g_postLoadSanitize = true;
 		g_playerMountHold = false;
 		g_playerFightActive = false;
@@ -4870,9 +4790,7 @@ namespace Collision
 				const float target = Settings::bEnabled ?
 					ScaleForActor(actor, player, combatScale) :
 					ScaleMath::kVanilla;
-				if (!CanSkipActorScale(actor, target)) {
-					SetActorScale(actor, target);
-				}
+				SetActorScale(actor, target);
 			}
 		}
 
@@ -4881,9 +4799,7 @@ namespace Collision
 				if (Settings::bEnabled && PlayerCombatHullMode(livePlayer) &&
 					!HullYieldsForKillMove(livePlayer)) {
 					const float playerSlider = ScaleForPlayerWeapon(livePlayer);
-					if (!CanSkipActorScale(livePlayer, playerSlider)) {
-						SetActorScale(livePlayer, playerSlider);
-					}
+					SetActorScale(livePlayer, playerSlider);
 					if (Settings::bLockTargetOnly) {
 						const auto* tdm = TDM_API::GetInterface();
 						if (tdm) {
@@ -4891,22 +4807,16 @@ namespace Collision
 								if (ShouldScaleHull(target.get()) &&
 									!SkipTeammateHull(target.get()) &&
 									!HullYieldsForKillMove(target.get())) {
-									const float npcTarget =
-										ScaleForActor(target.get(), livePlayer, playerSlider);
-									if (!CanSkipActorScale(target.get(), npcTarget)) {
-										SetActorScale(target.get(), npcTarget);
-									}
+									SetActorScale(
+										target.get(),
+										ScaleForActor(target.get(), livePlayer, playerSlider));
 								}
 							}
 						}
 					} else if (!fastCombatTick) {
 						ForEachCappedFightNpc(livePlayer, [&](RE::Actor* a_npc) {
 							if (!HullYieldsForKillMove(a_npc)) {
-								const float npcTarget =
-									ScaleForActor(a_npc, livePlayer, playerSlider);
-								if (!CanSkipActorScale(a_npc, npcTarget)) {
-									SetActorScale(a_npc, npcTarget);
-								}
+								SetActorScale(a_npc, ScaleForActor(a_npc, livePlayer, playerSlider));
 							}
 						});
 					}

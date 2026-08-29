@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.4
+
+- Same hull path as 1.4.2 (no unlocked Update-side radius reads, no skip-scale).
+- Keeps 1.4.3 Ally fights / non-hostile vanilla, Fist for unarmed weapons, Axe/Mace sliders, Animated Armoury sliders, and **NPC scale on their own weapon**.
+
 ## 1.4.3
 
 - Less hitching in big fights.
