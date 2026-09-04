@@ -177,7 +177,9 @@ function Get-DccPluginItems {
   return @(
     @{ Rel = "SKSE\Plugins\DynamicCombatCollision.dll"; Src = $DllPath },
     @{ Rel = "SKSE\Plugins\DynamicCombatCollision.pdb"; Src = [System.IO.Path]::ChangeExtension($DllPath, ".pdb") },
-    @{ Rel = "Interface\Translations"; IsDir = $true }
+    @{ Rel = "Interface\Translations"; IsDir = $true },
+    @{ Rel = "LICENSE"; Src = (Join-Path $Root "LICENSE") },
+    @{ Rel = "THIRD_PARTY.md"; Src = (Join-Path $Root "THIRD_PARTY.md") }
   )
 }
 
@@ -185,7 +187,9 @@ function Get-DccMcmItems {
   return @(
     @{ Rel = "DynamicCombatCollision.esp" },
     @{ Rel = "Scripts\DynamicCombatCollisionMCM.pex" },
-    @{ Rel = "MCM\Config\DynamicCombatCollision"; IsDir = $true }
+    @{ Rel = "MCM\Config\DynamicCombatCollision"; IsDir = $true },
+    @{ Rel = "LICENSE"; Src = (Join-Path $Root "LICENSE") },
+    @{ Rel = "THIRD_PARTY.md"; Src = (Join-Path $Root "THIRD_PARTY.md") }
   )
 }
 

@@ -3,7 +3,10 @@
 #include <stdint.h>
 
 /*
-* True Directional Movement public API header (MIT).
+* True Directional Movement public API header.
+* Copyright (c) Ershin. GPL-3.0-or-later WITH Modding Exception and
+* GPL-3.0 Linking Exception (with Corresponding Source). See COPYING and
+* EXCEPTIONS in the upstream repository.
 * Source: https://github.com/ersh1/TrueDirectionalMovement
 * For modders: Copy this file into your own project if you wish to use this API
 */

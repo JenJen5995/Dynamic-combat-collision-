@@ -6,17 +6,55 @@ This plugin is MIT, copyright typiak (`LICENSE`). Other licenses still apply.
 
 Build-time. https://github.com/CharmedBaryon/CommonLibSSE-NG (MIT)
 
-## TrueHUD API
+## TrueHUD and True Directional Movement (Ershin)
 
-- `src/TrueHUDAPI.h`
-- https://github.com/ersh1/TrueHUD (MIT)
+Both projects are **GPL-3.0-or-later WITH a Modding Exception and a GPL-3.0
+Linking Exception (with Corresponding Source)**. See `COPYING` and `EXCEPTIONS`
+in each upstream repository.
 
-## True Directional Movement API
+- `src/TrueHUDAPI.h` — from https://github.com/ersh1/TrueHUD
+- `src/TrueDirectionalMovementAPI.h` — from https://github.com/ersh1/TrueDirectionalMovement
 
-- `src/TrueDirectionalMovementAPI.h`
-- https://github.com/ersh1/TrueDirectionalMovement (MIT)
+Both files are the authors' published API headers and carry the notice
+"For modders: Copy this file into your own project if you wish to use this API".
+This plugin uses them only to call the published interfaces: `GetTargetLockState`
+from True Directional Movement, and widget/draw calls from TrueHUD. No
+implementation code from either project is used.
 
-Wrappers: `src/TrueHUD_API.h`, `src/TDM_API.h`
+Thin resolver wrappers written for this project: `src/TrueHUD_API.h`, `src/TDM_API.h`
+
+Modding Exception, as published by the author:
+
+```
+In addition, as a special exception, the authors gives You the additional right
+to link the code of this Program with the existing code that this Program is
+intended to be used with or modify and to distribute linked combinations
+including the two, subject to the limitations in this paragraph. Modded Code
+permitted under this exception may link to the code of this Program without
+causing the Modded Code and portion of the combined work corresponding to the
+Modded Code to be covered by the GNU General Public License. You must obey the
+GNU General Public License in all respects for all of the Program code and
+other code used in conjunction with the Program except the Modded Code covered
+by this exception. If you modify this file, you may extend this exception to
+your version of the file, but you are not obligated to do so. If you do not
+wish to provide this exception without modification, you must delete this
+exception statement from your version and license this file solely under the
+GPL without exception.
+```
+
+GPL-3.0 Linking Exception, as published by the author:
+
+```
+Additional permission under GNU GPL version 3 section 7
+
+If you modify this Program, or any covered work, by linking or combining it
+with Modding Libraries (or a modified version thereof), containing parts
+covered by the terms of Modding Library Licenses, the licensors of this Program
+grant you additional permission to convey the resulting work. Corresponding
+Source for a non-source form of such a combination shall include the source
+code for the parts of Modding Libraries used as well as that of the covered
+work.
+```
 
 ## SKSE Menu Framework and Dear ImGui
 

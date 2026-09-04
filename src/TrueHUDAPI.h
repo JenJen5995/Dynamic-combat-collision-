@@ -4,7 +4,10 @@
 #include <stdint.h>
 
 /*
-* TrueHUD public API header (MIT). Source: https://github.com/ersh1/TrueHUD
+* TrueHUD public API header. Source: https://github.com/ersh1/TrueHUD
+* Copyright (c) Ershin. GPL-3.0-or-later WITH Modding Exception and
+* GPL-3.0 Linking Exception (with Corresponding Source). See COPYING and
+* EXCEPTIONS in the upstream repository.
 * For modders: Copy this file into your own project if you wish to use this API
 */
 namespace TRUEHUD_API
