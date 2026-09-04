@@ -39,7 +39,7 @@ namespace
 			break;
 		case SKSE::MessagingInterface::kDataLoaded:
 			Settings::Load();
-			Collision::Reset();
+			Collision::Reset("data-loaded");
 			Collision::InitWeaponKeywords();
 			if (std::filesystem::exists(L"Data/Interface/Translations/DynamicCombatCollision_ENGLISH.txt")) {
 				SKSE::Translation::ParseTranslation("DynamicCombatCollision");
@@ -49,12 +49,15 @@ namespace
 #endif
 			break;
 		case SKSE::MessagingInterface::kPreLoadGame:
-			Collision::Reset();
+			Collision::Reset("pre-load-game");
 			break;
 		case SKSE::MessagingInterface::kPostLoadGame:
+			Settings::Load();
+			Collision::Reset("post-load-game");
+			break;
 		case SKSE::MessagingInterface::kNewGame:
 			Settings::Load();
-			Collision::Reset();
+			Collision::Reset("new-game");
 			break;
 		default:
 			break;

@@ -4,6 +4,9 @@
 
 - Same hull path as 1.4.2 (no unlocked Update-side radius reads, no skip-scale).
 - Keeps 1.4.3 Ally fights / non-hostile vanilla, Fist for unarmed weapons, Axe/Mace sliders, Animated Armoury sliders, and **NPC scale on their own weapon**.
+- Ally / teammate checks are `IsPlayerTeammate` only (1.4.2). No Current Follower / Hireling faction scan.
+- Followers are no longer pushed out of your combat collision. **Don't get pushed** left them out of Attack translation but still moved them; now all four paths skip teammates and let normal physics handle it.
+- Log records every load, how far the mod has moved each actor, and a warning if another plugin replaces our physics hooks. Please attach the log when reporting a bug.
 
 ## 1.4.3
 

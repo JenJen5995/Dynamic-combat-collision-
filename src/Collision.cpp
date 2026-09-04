@@ -134,6 +134,22 @@ namespace Collision
 		FatNpcBody g_fatNpcBodies[kMaxActors]{};
 		std::uint32_t g_fatNpcCount = 0;
 
+		struct ShoveTally
+		{
+			float totalWorld{ 0.0f };
+			float maxStepWorld{ 0.0f };
+			bool reported{ false };
+		};
+		std::unordered_map<RE::FormID, ShoveTally> g_shoveTally;
+		constexpr float kShoveReportWorld = 50.0f;
+
+		std::uint32_t g_resetCount = 0;
+		std::uintptr_t g_proxyVtbl = 0;
+		std::uintptr_t g_ourProcessConstraints = 0;
+		std::uintptr_t g_ourCharacterInteraction = 0;
+		bool g_hookCheckDone = false;
+		constexpr std::uint32_t kHookCheckFrame = 300;
+
 		LowHull DesiredLowHull(RE::Actor* a_actor);
 		bool FindConvexList(
 			RE::bhkCharacterController* a_controller,
@@ -302,43 +318,19 @@ namespace Collision
 			return false;
 		}
 
-		bool InFactionID(RE::Actor* a_actor, RE::FormID a_factionID)
-		{
-			if (!a_actor || a_factionID == 0) {
-				return false;
-			}
-			auto* faction = RE::TESForm::LookupByID<RE::TESFaction>(a_factionID);
-			return faction && a_actor->IsInFaction(faction);
-		}
-
-		bool IsFollowerAlly(RE::Actor* a_actor)
-		{
-			if (!a_actor || a_actor->IsPlayerRef()) {
-				return false;
-			}
-			if (a_actor->IsPlayerTeammate() || a_actor->IsCommandedActor() ||
-				a_actor->IsSummonedByPlayer()) {
-				return true;
-			}
-			constexpr RE::FormID kCurrentFollowerFaction = 0x0005C84E;
-			constexpr RE::FormID kCurrentHirelingFaction = 0x000BD738;
-			return InFactionID(a_actor, kCurrentFollowerFaction) ||
-				InFactionID(a_actor, kCurrentHirelingFaction);
-		}
-
 		bool SkipTeammateHull(RE::Actor* a_actor)
 		{
 			if (!a_actor || a_actor->IsPlayerRef()) {
 				return false;
 			}
-			if (Settings::bAllyCombatCollision && IsFollowerAlly(a_actor)) {
+			if (Settings::bAllyCombatCollision && a_actor->IsPlayerTeammate()) {
 				return false;
 			}
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			if (player && !a_actor->IsHostileToActor(player)) {
 				return true;
 			}
-			return IsFollowerAlly(a_actor);
+			return a_actor->IsPlayerTeammate();
 		}
 
 		bool ActorYieldsCombatHull(RE::Actor* a_actor)
@@ -635,6 +627,44 @@ namespace Collision
 			return true;
 		}
 
+		// Records how far we have physically moved an actor. Reported once per
+		// actor so a "mod teleported my follower" claim can be checked in the log.
+		void NoteActorShove(RE::Actor* a_actor, float a_moveHk)
+		{
+			if (!a_actor || !(a_moveHk > 0.0f) || !std::isfinite(a_moveHk)) {
+				return;
+			}
+			const auto id = a_actor->GetFormID();
+			auto it = g_shoveTally.find(id);
+			if (it == g_shoveTally.end()) {
+				if (g_shoveTally.size() >= kMaxTracked) {
+					return;
+				}
+				it = g_shoveTally.emplace(id, ShoveTally{}).first;
+			}
+			auto& tally = it->second;
+			if (tally.reported) {
+				return;
+			}
+			const float stepWorld = a_moveHk * RE::bhkWorld::GetWorldScaleInverse();
+			tally.totalWorld += stepWorld;
+			if (stepWorld > tally.maxStepWorld) {
+				tally.maxStepWorld = stepWorld;
+			}
+			if (tally.totalWorld < kShoveReportWorld) {
+				return;
+			}
+			tally.reported = true;
+			const auto* name = a_actor->GetDisplayFullName();
+			logger::info(
+				"shove tally {:08X} '{}' total={:.0f} maxStep={:.2f} units teammate={}",
+				id,
+				name ? name : "",
+				tally.totalWorld,
+				tally.maxStepWorld,
+				a_actor->IsPlayerTeammate() ? 1 : 0);
+		}
+
 		void LogCombatHull(
 			RE::Actor* a_actor,
 			const char* a_what,
@@ -649,7 +679,7 @@ namespace Collision
 			const auto* name = a_actor->GetDisplayFullName();
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			const auto line = fmt::format(
-				"combat hull {} {:08X} '{}' live={:.1f} want={:.1f} base={:.1f} applied={:.2f} teammate={} follower={} hostile={}",
+				"combat hull {} {:08X} '{}' live={:.1f} want={:.1f} base={:.1f} applied={:.2f} teammate={} hostile={}",
 				a_what,
 				a_actor->GetFormID(),
 				name ? name : "",
@@ -658,7 +688,6 @@ namespace Collision
 				a_base,
 				a_applied,
 				a_actor->IsPlayerTeammate() ? 1 : 0,
-				IsFollowerAlly(a_actor) ? 1 : 0,
 				(player && a_actor->IsHostileToActor(player)) ? 1 : 0);
 			const auto id = a_actor->GetFormID();
 			if (!g_hullLogLine.contains(id) && g_hullLogLine.size() >= kMaxTracked) {
@@ -901,7 +930,7 @@ namespace Collision
 			std::uint32_t allyCount = 0;
 			for (auto& handle : a_lists->highActorHandles) {
 				const auto actor = handle.get();
-				if (!actor || !IsFollowerAlly(actor.get())) {
+				if (!actor || !actor->IsPlayerTeammate()) {
 					continue;
 				}
 				const bool inFight = HasCombatTarget(actor.get()) ||
@@ -2343,13 +2372,13 @@ namespace Collision
 				return a_combatScale;
 			}
 
-			if (Settings::bAllyCombatCollision && IsFollowerAlly(a_actor) && HasCombatTarget(a_actor)) {
+			if (Settings::bAllyCombatCollision && a_actor->IsPlayerTeammate() && HasCombatTarget(a_actor)) {
 				return ScaleForPlayerWeapon(a_actor);
 			}
 
 			if (Settings::bAllyCombatCollision && HasCombatTarget(a_actor)) {
 				if (const auto ally = a_actor->GetActorRuntimeData().currentCombatTarget.get()) {
-					if (ally.get() != a_player && IsFollowerAlly(ally.get())) {
+					if (ally.get() != a_player && ally->IsPlayerTeammate()) {
 						return ScaleForPlayerWeapon(ally.get());
 					}
 				}
@@ -3800,6 +3829,9 @@ namespace Collision
 			if (SkipAnimalCombatMove(npcEarly.get()) || ActorOversizedForShove(npcEarly.get(), tracked)) {
 				return;
 			}
+			if (npcEarly && npcEarly->IsPlayerTeammate()) {
+				return;
+			}
 
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			auto* playerTracked = player ?
@@ -4138,6 +4170,10 @@ namespace Collision
 				_CharacterInteraction(a_self, a_proxy, a_otherProxy, a_contact);
 				return;
 			}
+			if (npc && npc->IsPlayerTeammate()) {
+				_CharacterInteraction(a_self, a_proxy, a_otherProxy, a_contact);
+				return;
+			}
 			if (playerProxy->shapePhantom && a_proxy->shapePhantom) {
 				const auto& playerT = playerProxy->shapePhantom->motionState.transform.translation;
 				const auto& npcT = a_proxy->shapePhantom->motionState.transform.translation;
@@ -4290,7 +4326,7 @@ namespace Collision
 				if (!actor || actor->IsPlayerRef() || ActorIsGone(actor.get()) || !actor->Is3DLoaded()) {
 					continue;
 				}
-				if (IsFollowerAlly(actor.get())) {
+				if (actor->IsPlayerTeammate()) {
 					continue;
 				}
 				if (!InPlayersFight(actor.get(), player)) {
@@ -4415,7 +4451,7 @@ namespace Collision
 				if (!actor || actor->IsPlayerRef() || ActorIsGone(actor) || !actor->Is3DLoaded()) {
 					continue;
 				}
-				if (IsFollowerAlly(actor)) {
+				if (actor->IsPlayerTeammate()) {
 					continue;
 				}
 				if (!InPlayersFight(actor, player)) {
@@ -4487,6 +4523,7 @@ namespace Collision
 				npcPos.quad.m128_f32[0] -= nxx * move;
 				npcPos.quad.m128_f32[1] -= nyy * move;
 				npcCtrl->SetPositionImpl(npcPos, false, false);
+				NoteActorShove(actor, move);
 
 				const float vn = vel.quad.m128_f32[0] * nxx + vel.quad.m128_f32[1] * nyy;
 				if (vn > -wantHk * 0.5f) {
@@ -4531,6 +4568,9 @@ namespace Collision
 			for (auto& handle : lists->highActorHandles) {
 				const auto actor = handle.get();
 				if (!actor || actor->IsPlayerRef() || ActorIsGone(actor.get()) || !actor->Is3DLoaded()) {
+					continue;
+				}
+				if (actor->IsPlayerTeammate()) {
 					continue;
 				}
 				auto* npcCtrl = actor->GetCharController();
@@ -4585,6 +4625,7 @@ namespace Collision
 				npcPos.quad.m128_f32[0] += nxx * pen;
 				npcPos.quad.m128_f32[1] += nyy * pen;
 				npcCtrl->SetPositionImpl(npcPos, false, false);
+				NoteActorShove(actor.get(), pen);
 			}
 		}
 
@@ -4651,6 +4692,42 @@ namespace Collision
 			REL::Relocation<std::uintptr_t> vtbl{ RE::VTABLE_bhkCharProxyController[0] };
 			_ProcessConstraints = vtbl.write_vfunc(1, ProcessConstraintsThunk);
 			_CharacterInteraction = vtbl.write_vfunc(4, CharacterInteractionThunk);
+			g_proxyVtbl = vtbl.address();
+			g_ourProcessConstraints = reinterpret_cast<std::uintptr_t>(&ProcessConstraintsThunk);
+			g_ourCharacterInteraction = reinterpret_cast<std::uintptr_t>(&CharacterInteractionThunk);
+			logger::info(
+				"proxy hooks installed vtbl={:X} vfunc1_orig={:X} vfunc4_orig={:X}",
+				g_proxyVtbl,
+				_ProcessConstraints.address(),
+				_CharacterInteraction.address());
+		}
+
+		// Another plugin hooking the same proxy vfuncs after us drops our detour
+		// (or ours drops theirs). Checked once per load so conflicts show in the log.
+		void CheckProxyHookIntegrity()
+		{
+			if (g_hookCheckDone || g_proxyVtbl == 0 || g_updateFrame < kHookCheckFrame) {
+				return;
+			}
+			g_hookCheckDone = true;
+			const auto* slots = reinterpret_cast<const std::uintptr_t*>(g_proxyVtbl);
+			const auto live1 = slots[1];
+			const auto live4 = slots[4];
+			if (live1 != g_ourProcessConstraints) {
+				logger::warn(
+					"proxy vfunc1 (ProcessConstraints) is {:X}, ours is {:X} - another plugin hooks it",
+					live1,
+					g_ourProcessConstraints);
+			}
+			if (live4 != g_ourCharacterInteraction) {
+				logger::warn(
+					"proxy vfunc4 (CharacterInteraction) is {:X}, ours is {:X} - another plugin hooks it",
+					live4,
+					g_ourCharacterInteraction);
+			}
+			if (live1 == g_ourProcessConstraints && live4 == g_ourCharacterInteraction) {
+				logger::info("proxy hooks intact");
+			}
 		}
 	}
 
@@ -4659,11 +4736,16 @@ namespace Collision
 		InitWeaponKeywordsInternal();
 	}
 
-	void Reset()
+	void Reset(const char* a_reason)
 	{
-		if (!g_tracked.empty()) {
-			logger::info("collision reset {}", g_tracked.size());
-		}
+		++g_resetCount;
+		logger::info(
+			"reset #{} ({}) tracked={} fat={} shoveTally={}",
+			g_resetCount,
+			a_reason ? a_reason : "unknown",
+			g_tracked.size(),
+			g_fatNpcCount,
+			g_shoveTally.size());
 		ClearFatNpcBodies();
 		ClearThunkCaches();
 		g_tracked.clear();
@@ -4675,6 +4757,8 @@ namespace Collision
 		g_playerFightActive = false;
 		g_playerFightHold = 0;
 		g_updateFrame = 0;
+		g_shoveTally.clear();
+		g_hookCheckDone = false;
 		ClearNudgeSet();
 		ClearKillMovePair();
 		g_kmIgnoreUntilClear = false;
@@ -4712,6 +4796,7 @@ namespace Collision
 		}
 
 		++g_updateFrame;
+		CheckProxyHookIntegrity();
 		RefreshKillMovePair();
 
 		RefreshPlayerFightActive();
@@ -4736,7 +4821,7 @@ namespace Collision
 				if (const auto* lists = RE::ProcessLists::GetSingleton()) {
 					for (auto& handle : lists->highActorHandles) {
 						const auto actor = handle.get();
-						if (actor && IsFollowerAlly(actor.get()) &&
+						if (actor && actor->IsPlayerTeammate() &&
 							(HasCombatTarget(actor.get()) ||
 								ActorsWithinFightRange(actor.get(), player))) {
 							fastCombatTick = true;
